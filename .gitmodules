@@ -1,0 +1,3 @@
+[submodule "dependencies/randomjson"]
+	path = dependencies/randomjson
+	url = https://github.com/ioioioio/randomjson
