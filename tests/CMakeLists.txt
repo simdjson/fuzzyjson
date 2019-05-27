@@ -3,7 +3,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_testing()
 include_directories("../include")
-include_directories("dependencies/simdjson/singleheader")
 add_executable (tests unittests.cpp)
 
 macro(append var string)

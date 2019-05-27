@@ -15,6 +15,8 @@ append(CMAKE_CXX_FLAGS "-g3 -fsanitize=address -fno-omit-frame-pointer -fsanitiz
 
 include_directories("include")
 include_directories("dependencies/randomjson/include")
+include_directories("dependencies/simdjson/singleheader")
+include_directories("dependencies/rapidjson/include")
 
 add_subdirectory(tests)
 add_test( tests tests/unittests.cpp )
