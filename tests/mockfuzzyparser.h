@@ -2,27 +2,34 @@
 #define MOCKFUZZYPARSER_H
 
 #include <string>
-#include <unordered_map>
 
 #include "fuzzyjsonparser.h"
 
-namespace fuzzyjson {
+namespace fuzzyjson
+{
 
-class MockFuzzyParser : public FuzzyJsonParser {
+class MockFuzzyParser : public FuzzyJsonParser
+{
     public:
     MockFuzzyParser(std::string name, FuzzyParserResult result)
     : FuzzyJsonParser(name)
-    , current_result(result)
+    , last_result(result)
     {
     };
+
+    ~MockFuzzyParser() = default;
     
-    FuzzyParserResult parse(char* json, int size) override
+    FuzzyParserResult parse(char* const json, int size) override
     {
-        return current_result;
+        return last_result;
+    }
+
+    std::string get_result_string() override {
+        return result_to_string.at(last_result);
     }
 
     private:
-    FuzzyParserResult current_result;
+    FuzzyParserResult last_result;
 };
 
 }

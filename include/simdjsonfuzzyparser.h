@@ -16,8 +16,10 @@ class SimdjsonFuzzyParser : public FuzzyJsonParser {
     : FuzzyJsonParser("simdjson")
     {
     };
+
+    ~SimdjsonFuzzyParser() = default;
     
-    FuzzyParserResult parse(char* json, int size) override
+    FuzzyParserResult parse(char* const json, int size) override
     {
         ParsedJson pj;
         bool allocation_is_successful = pj.allocateCapacity(size);
@@ -29,7 +31,14 @@ class SimdjsonFuzzyParser : public FuzzyJsonParser {
         return result_correspondances.at(result);
     }
 
+    std::string get_result_string() override {
+        FuzzyParserResult fuzzy_result = result_correspondances.at(last_result);
+        return result_to_string.at(fuzzy_result);
+    }
+
     private:
+    simdjson::errorValues last_result;
+
     std::unordered_map<simdjson::errorValues, FuzzyParserResult> result_correspondances {
         { simdjson::SUCCESS, FuzzyParserResult::ok },
         { simdjson::CAPACITY, FuzzyParserResult::other_error },

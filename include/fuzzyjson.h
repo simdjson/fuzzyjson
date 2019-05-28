@@ -10,15 +10,22 @@
 #include <random>
 #include <vector>
 
+#include "rapidjson/prettywriter.h"
+#include "rapidjson/stringbuffer.h"
+
 #include "randomjson.h"
 #include "fuzzyjsonparser.h"
 
-namespace fuzzyjson {
-class FuzzyJson {
+
+namespace fuzzyjson
+{
+
+class FuzzyJson
+{
     public:
     FuzzyJson(int size); // a random json file will be generated
     FuzzyJson(std::string json_filename);
-    void add_parser(std::unique_ptr<fuzzyjson::FuzzyJsonParser>&& parser) {
+    void add_parser(std::unique_ptr<FuzzyJsonParser> parser) {
         parsers.push_back(std::move(parser));
     }
     void fuzz();
@@ -26,29 +33,16 @@ class FuzzyJson {
     private:
     void generate_report();
     randomjson::RandomJson random_json;
-    std::string source_type;
-    std::string source_name;
-    int seed;
-    std::vector<std::unique_ptr<fuzzyjson::FuzzyJsonParser>> parsers;
-    std::random_device rd;
-    std::mt19937 random_generator;
+    std::vector<std::unique_ptr<FuzzyJsonParser>> parsers;
 };
 
 FuzzyJson::FuzzyJson(int size)
 : random_json(size)
-, source_type("randomjson")
-, source_name(std::to_string(random_json.get_seed()))
-, seed(rd())
-, random_generator(seed)
 {
 }
 
 FuzzyJson::FuzzyJson(std::string json_filename)
 : random_json(json_filename)
-, source_type("file")
-, source_name(json_filename)
-, seed(rd())
-, random_generator(seed)
 {
 }
 
@@ -61,7 +55,7 @@ void FuzzyJson::fuzz()
     }
 
     for (int iteration_number = 0; iteration_number < 10; iteration_number++) {
-        random_json.mutate();
+        //random_json.mutate();
         // parsing
         for (int parser_index = 0; parser_index < parsers.size(); parser_index++) {
             auto& parser = parsers[parser_index];
@@ -79,8 +73,44 @@ void FuzzyJson::fuzz()
     }
 }
 
-void FuzzyJson::generate_report() {
-    
+void FuzzyJson::generate_report()
+{
+    std::cout << "generation du rapport" << std::endl;
+    rapidjson::StringBuffer string_buffer;
+    rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(string_buffer);
+    writer.StartObject();
+    writer.Key("randomjson");
+    writer.StartObject();
+    writer.Key("provenance_type");
+    switch (random_json.get_provenance_type()) {
+        case randomjson::ProvenanceType::seed :
+            writer.String("seed");
+            writer.Key("source_name");
+            writer.Uint(random_json.get_generation_seed());
+            break;
+        case randomjson::ProvenanceType::file :
+            writer.String("file");
+            writer.Key("filename");
+            writer.String(random_json.get_filename().c_str());
+            break;
+    }
+    writer.Key("mutation_seed");
+    writer.Uint(random_json.get_mutation_seed());
+    writer.Key("number_of_mutations");
+    writer.Uint(random_json.get_number_of_mutations());
+    writer.EndObject();
+    writer.Key("parsing_results");
+    writer.StartArray();
+    for (auto& parser : parsers) {
+        writer.StartObject();
+        writer.Key("parser_name");
+        writer.String(parser->get_name().c_str());
+        writer.Key("result");
+        writer.String(parser->get_result_string().c_str());
+        writer.EndObject();
+    }
+    writer.EndArray();
+    writer.EndObject();
 }
 
 }

@@ -5,6 +5,8 @@ enable_testing()
 include_directories("../include")
 add_executable (tests unittests.cpp)
 
+add_definitions(-DTESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
 macro(append var string)
   set(${var} "${${var}} ${string}")
 endmacro(append)

@@ -1,46 +1,31 @@
-#ifndef RAPIDJSONFUZZYPARSER_H
-#define RAPIDJSONFUZZYPARSER_H
+#ifndef SAJSONFUZZYPARSER_H
+#define SAJSONFUZZYPARSER
 
 #include <string>
 
 #include "fuzzyjsonparser.h"
-#include "rapidjson/document.h"
 
 namespace fuzzyjson {
 
 class RapidjsonFuzzyParser : public FuzzyJsonParser {
     public:
-    RapidjsonFuzzyParser()
-    : FuzzyJsonParser("rapidjson")
-    {
-    };
-
-    ~RapidjsonFuzzyParser() override = default;
-
-    FuzzyParserResult parse(char* const json, int size) override
+    RapidjsonFuzzyParser() : FuzzyJsonParser("rapidjson") {};
+    bool parse(char* json, int size) override
     {
         rapidjson::Document d;
         d.Parse(json, size);
+        std::cout << std::endl << "error code : " << d.GetParseError() << std::endl;
 
-        last_result = static_cast<rapidjson::ParseErrorCode>(d.GetParseError());
-
-        return result_correspondances.at(last_result);
-    }
-
-    std::string get_result_string() override {
-        FuzzyParserResult fuzzy_result = result_correspondances.at(last_result);
-        return result_to_string.at(fuzzy_result);
+        return !d.HasParseError();
     }
 
     private:
-    rapidjson::ParseErrorCode last_result;
-
-    std::unordered_map<rapidjson::ParseErrorCode, FuzzyParserResult> result_correspondances {
+    std::unordered_map<rapidjson::ParseErrorCode, FuzzyParser> error_correspondances {
         { rapidjson::ParseErrorCode::kParseErrorNone, FuzzyParserResult::ok },
         { rapidjson::ParseErrorCode::kParseErrorDocumentEmpty, FuzzyParserResult::other_error },
         { rapidjson::ParseErrorCode::kParseErrorDocumentRootNotSingular, FuzzyParserResult::other_error },
         { rapidjson::ParseErrorCode::kParseErrorValueInvalid, FuzzyParserResult::other_error },
-        { rapidjson::ParseErrorCode::kParseErrorObjectMissName, FuzzyParserResult::other_error },
+        { rapidjson::ParseErrorCode::kParseErrorObjectMissName, FuzzyParserResult::other_error},
         { rapidjson::ParseErrorCode::kParseErrorObjectMissColon, FuzzyParserResult::other_error },
         { rapidjson::ParseErrorCode::kParseErrorObjectMissCommaOrCurlyBracket, FuzzyParserResult::other_error },
         { rapidjson::ParseErrorCode::kParseErrorArrayMissCommaOrSquareBracket, FuzzyParserResult::other_error },
