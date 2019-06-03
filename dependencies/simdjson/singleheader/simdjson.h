@@ -37114,7 +37114,7 @@ static really_inline bool parse_number(const uint8_t *const buf,
 #endif
         return false;       
     }
-    exponent += (negexp ? -expnumber : expnumber);
+    expnumber += (negexp ? -expnumber : expnumber);
   }
   if ((exponent != 0) || (expnumber != 0)) {
     if (unlikely(digitcount >= 19)) { // this is uncommon!!!
@@ -37135,6 +37135,7 @@ static really_inline bool parse_number(const uint8_t *const buf,
       double d = i;
       d = negative ? -d : d;
       d *= power_of_ten[308 + exponent];
+      d *= power_of_ten[308 + expnumber];
       pj.write_tape_double(d);
 #ifdef JSON_TEST_NUMBERS // for unit testing
       foundFloat(d, buf + offset);

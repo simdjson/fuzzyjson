@@ -14,7 +14,7 @@
 #include "rapidjson/stringbuffer.h"
 
 #include "randomjson.h"
-#include "fuzzyjsonparser.h"
+#include "parser.h"
 
 
 namespace fuzzyjson
@@ -25,15 +25,16 @@ class FuzzyJson
     public:
     FuzzyJson(int size); // a random json file will be generated
     FuzzyJson(std::string json_filename);
-    void add_parser(std::unique_ptr<FuzzyJsonParser> parser) {
+    void add_parser(std::unique_ptr<Parser> parser) {
         parsers.push_back(std::move(parser));
     }
     void fuzz();
 
     private:
+    void compare_parsing();
     void generate_report();
     randomjson::RandomJson random_json;
-    std::vector<std::unique_ptr<FuzzyJsonParser>> parsers;
+    std::vector<std::unique_ptr< Parser>> parsers;
 };
 
 FuzzyJson::FuzzyJson(int size)
@@ -48,34 +49,38 @@ FuzzyJson::FuzzyJson(std::string json_filename)
 
 void FuzzyJson::fuzz()
 {
-    // initializing the results
-    std::vector<FuzzyParserResult> results(parsers.size());
-    for (auto& parser : parsers) {
-        results.push_back(FuzzyParserResult::ok);
-    }
-
+    // mutations and comparisons
     for (int iteration_number = 0; iteration_number < 10; iteration_number++) {
         //random_json.mutate();
         // parsing
-        for (int parser_index = 0; parser_index < parsers.size(); parser_index++) {
-            auto& parser = parsers[parser_index];
-            results.at(parser_index) = parser->parse(random_json.get_json(), random_json.get_size());
-        }
-        // comparing the results
-        // To fix : will crash if there is less than two parser.
-        FuzzyParserResult first_result = results.at(0);
-        for (int parser_index = 1; parser_index < results.size(); parser_index++) {
-            // If all results are not identical, we generate a report
-            if (first_result != results.at(parser_index)) {
-                generate_report();
-            }
+        compare_parsing();
+    }
+}
+
+void FuzzyJson::compare_parsing() {
+    // initializing the results
+    std::vector<ParsingResult> results(parsers.size());
+    for (auto& parser : parsers) {
+        results.push_back(ParsingResult::ok);
+    }
+
+    for (int parser_index = 0; parser_index < parsers.size(); parser_index++) {
+        auto& parser = parsers[parser_index];
+        results.at(parser_index) = parser->parse(random_json.get_json(), random_json.get_size());
+    }
+    // comparing the results
+    // To fix : will crash if there is less than two parser.
+    ParsingResult first_result = results.at(0);
+    for (int parser_index = 1; parser_index < results.size(); parser_index++) {
+        // If all results are not identical, we generate a report
+        if (first_result != results.at(parser_index)) {
+            generate_report();
         }
     }
 }
 
 void FuzzyJson::generate_report()
 {
-    std::cout << "generation du rapport" << std::endl;
     rapidjson::StringBuffer string_buffer;
     rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(string_buffer);
     writer.StartObject();
@@ -111,6 +116,7 @@ void FuzzyJson::generate_report()
     }
     writer.EndArray();
     writer.EndObject();
+    
 }
 
 }
