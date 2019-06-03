@@ -6,14 +6,14 @@
 
 void test_simdjson(randomjson::RandomJson& random_json) {
     fuzzyjson::SimdjsonParser simdjson_parser;
-    fuzzyjson::ParsingResult result = simdjson_parser.parse(random_json.get_json(), random_json.get_size());
-    assert(result == fuzzyjson::ParsingResult::ok);
+    fuzzyjson::Traverser traverser = simdjson_parser.parse(random_json.get_json(), random_json.get_size());
+    assert(traverser.get_parsing_result() == fuzzyjson::ParsingResult::ok);
 }
 
 void test_rapidjson(randomjson::RandomJson& random_json) {
     fuzzyjson::RapidjsonParser rapidjson_parser;
-    fuzzyjson::ParsingResult result = rapidjson_parser.parse(random_json.get_json(), random_json.get_size());
-    assert(result == fuzzyjson::ParsingResult::ok);
+    fuzzyjson::Traverser traverser = rapidjson_parser.parse(random_json.get_json(), random_json.get_size());
+    assert(traverser.get_parsing_result() == fuzzyjson::ParsingResult::ok);
 }
 
 void test_fuzz() {

@@ -17,19 +17,15 @@ class RapidjsonParser : public Parser {
 
     ~RapidjsonParser() override = default;
 
-    ParsingResult parse(char* const json, int size) override
+    Traverser parse(char* const json, int size) override
     {
         rapidjson::Document d;
         d.Parse(json, size);
 
-        last_result = static_cast<rapidjson::ParseErrorCode>(d.GetParseError());
+        auto rapidjson_result = static_cast<rapidjson::ParseErrorCode>(d.GetParseError());
+        ParsingResult parsing_result = result_correspondances.at(rapidjson_result);
 
-        return result_correspondances.at(last_result);
-    }
-
-    std::string get_result_string() override {
-        ParsingResult fuzzy_result = result_correspondances.at(last_result);
-        return result_to_string.at(fuzzy_result);
+        return Traverser(get_name(), parsing_result);
     }
 
     private:

@@ -19,21 +19,16 @@ class SimdjsonParser : public Parser {
 
     ~SimdjsonParser() = default;
     
-    ParsingResult parse(char* const json, int size) override
+    Traverser parse(char* const json, int size) override
     {
         ParsedJson pj;
         bool allocation_is_successful = pj.allocateCapacity(size);
         if (!allocation_is_successful) {
-            return ParsingResult::other_error;
+            return Traverser(get_name(), ParsingResult::other_error);
         }
-        simdjson::errorValues result = static_cast<simdjson::errorValues>(json_parse(json, size, pj));
-
-        return result_correspondances.at(result);
-    }
-
-    std::string get_result_string() override {
-        ParsingResult result = result_correspondances.at(last_result);
-        return result_to_string.at(result);
+        auto simdjson_result = static_cast<simdjson::errorValues>(json_parse(json, size, pj));
+        ParsingResult result = result_correspondances.at(simdjson_result);
+        return Traverser(get_name(), result);
     }
 
     private:
