@@ -32,7 +32,7 @@ class FuzzyJson
 
     private:
     void compare_parsing();
-    void generate_report(std::vector<Traverser> traversers);
+    void generate_report(std::vector<std::unique_ptr<Traverser>>& traversers);
     randomjson::RandomJson random_json;
     std::vector<std::unique_ptr< Parser>> parsers;
 };
@@ -58,23 +58,23 @@ void FuzzyJson::fuzz()
 }
 
 void FuzzyJson::compare_parsing() {
-    std::vector<Traverser> traversers;
+    std::vector<std::unique_ptr<Traverser>> traversers;
 
     for (auto& parser : parsers) {
         traversers.push_back(parser->parse(random_json.get_json(), random_json.get_size()));
     }
     // comparing the results
     // To fix : will crash if there is less than two parser.
-    ParsingResult first_result = traversers.at(0).get_parsing_result();
-    for (int parser_index = 1; parser_index < traversers.size(); parser_index++) {
+    ParsingResult first_result = traversers.at(0)->get_parsing_result();
+    for (int traverser_index = 1; traverser_index < traversers.size(); traverser_index++) {
         // If all results are not identical, we generate a report
-        if (first_result != traversers.at(parser_index).get_parsing_result()) {
+        if (first_result != traversers.at(traverser_index)->get_parsing_result()) {
             generate_report(traversers);
         }
     }
 }
 
-void FuzzyJson::generate_report(std::vector<Traverser> traversers)
+void FuzzyJson::generate_report(std::vector<std::unique_ptr<Traverser>>& traversers)
 {
     rapidjson::StringBuffer string_buffer;
     rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(string_buffer);
@@ -104,9 +104,9 @@ void FuzzyJson::generate_report(std::vector<Traverser> traversers)
     for (auto& traverser : traversers) {
         writer.StartObject();
         writer.Key("parser_name");
-        writer.String(traverser.get_parser_name().c_str());
+        writer.String(traverser->get_parser_name().c_str());
         writer.Key("result");
-        writer.String(traverser.get_result_string().c_str());
+        writer.String(traverser->get_result_string().c_str());
         writer.EndObject();
     }
     writer.EndArray();

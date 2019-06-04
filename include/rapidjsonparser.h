@@ -17,7 +17,7 @@ class RapidjsonParser : public Parser {
 
     ~RapidjsonParser() override = default;
 
-    Traverser parse(char* const json, int size) override
+    std::unique_ptr<Traverser> parse(char* const json, int size) override
     {
         rapidjson::Document d;
         d.Parse(json, size);
@@ -25,7 +25,7 @@ class RapidjsonParser : public Parser {
         auto rapidjson_result = static_cast<rapidjson::ParseErrorCode>(d.GetParseError());
         ParsingResult parsing_result = result_correspondances.at(rapidjson_result);
 
-        return Traverser(get_name(), parsing_result);
+        return std::make_unique<Traverser>(get_name(), parsing_result);
     }
 
     private:

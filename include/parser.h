@@ -1,6 +1,7 @@
 #ifndef PARSER_H
 #define PARSER_H
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 
@@ -36,8 +37,35 @@ enum class ValueType
     null, // json null value
     end_of_container, // end of object or array
     end_of_document,
+    error, // Not a value. Something went wrong.
 };
 
+std::string valuetype_to_string(ValueType valuetype) {
+    switch (valuetype) {
+        case ValueType::object:
+            return "object";
+        case ValueType::array:
+            return "array";
+        case ValueType::key:
+            return "key";
+        case ValueType::integer:
+            return "integer";
+        case ValueType::floating:
+            return "floating";
+        case ValueType::boolean:
+            return "boolean";
+        case ValueType::null:
+            return "null";
+        case ValueType::end_of_container:
+            return "end_of_container";
+        case ValueType::end_of_document:
+            return "end_of_document";
+        case ValueType::error:
+        default:
+            return "error";
+    }
+
+}
 
 class Traverser
 {
@@ -46,6 +74,7 @@ class Traverser
     : parser_name(parser_name)
     , parsing_result(parsing_result)
     {};
+    virtual ~Traverser() {};
 
     std::string get_parser_name() { return parser_name; }
     ParsingResult get_parsing_result() { return parsing_result; }
@@ -54,9 +83,9 @@ class Traverser
         return result_to_string.at(parsing_result);
     }
 
-    void next() {
-        ValueType value_type;
-        switch (value_type) {
+    ValueType next() {
+        ValueType valuetype = get_current_type();
+        switch (valuetype) {
             case ValueType::object:
             case ValueType::array:
                 down();
@@ -77,20 +106,21 @@ class Traverser
 
         index++;
 
-        value_type;
+        return valuetype;
     }
+
     int get_index() { return index; }
 
-    ValueType get_type();
-    std::string get_string();
-    int get_integer();
-    double get_floating();
-    bool get_boolean();
+    virtual ValueType get_current_type() = 0;
+    virtual std::string get_string() = 0;
+    virtual int get_integer() = 0;
+    virtual double get_floating() = 0;
+    virtual bool get_boolean() = 0;
 
     private:
-    void up();
-    void down();
-    void advance_container();
+    virtual void up() = 0; // go to the parent container of the current element
+    virtual void down() = 0; // go to the first element of the pointed container
+    virtual void advance_container() = 0; // go to next element of the current container
 
     std::string parser_name;
     ParsingResult parsing_result;
@@ -101,7 +131,7 @@ class Parser
 {
     public:
     Parser(std::string name) : name(name) {};
-    virtual Traverser parse(char* const json, int size) = 0;
+    virtual std::unique_ptr<Traverser> parse(char* const json, int size) = 0;
     virtual ~Parser() {};
     std::string get_name() { return name; }
     private:

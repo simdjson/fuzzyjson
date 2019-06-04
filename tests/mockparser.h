@@ -13,18 +13,18 @@ class MockParser : public Parser
     public:
     MockParser(std::string name, ParsingResult result)
     : Parser(name)
-    , traverser(name, result)
+    , result(result)
     {
     };
 
     ~MockParser() = default;
     
-    Traverser parse(char* const json, int size) override
+    std::unique_ptr<Traverser> parse(char* const json, int size) override
     {
-        return traverser;
+        return std::make_unique<Traverser>(get_name(), result);
     }
 
-    Traverser traverser;
+    ParsingResult result;
 };
 
 }
