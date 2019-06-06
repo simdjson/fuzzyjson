@@ -46,6 +46,8 @@ std::string valuetype_to_string(ValueType valuetype) {
             return "object";
         case ValueType::array:
             return "array";
+        case ValueType::string:
+            return "string";
         case ValueType::key:
             return "key";
         case ValueType::integer:
@@ -73,8 +75,9 @@ class Traverser
     Traverser(std::string parser_name, ParsingResult parsing_result)
     : parser_name(parser_name)
     , parsing_result(parsing_result)
-    {};
-    virtual ~Traverser() {};
+    {}
+    
+    virtual ~Traverser() {}
 
     std::string get_parser_name() { return parser_name; }
     ParsingResult get_parsing_result() { return parsing_result; }
@@ -83,55 +86,24 @@ class Traverser
         return result_to_string.at(parsing_result);
     }
 
-    ValueType next() {
-        ValueType valuetype = get_current_type();
-        switch (valuetype) {
-            case ValueType::object:
-            case ValueType::array:
-                down();
-                break;
-            case ValueType::key:
-            case ValueType::integer:
-            case ValueType::floating:
-            case ValueType::boolean:
-            case ValueType::null:
-                advance_container();
-                break;
-            case ValueType::end_of_container:
-                up();
-                break;
-            case ValueType::end_of_document:
-            break;
-        }
-
-        index++;
-
-        return valuetype;
-    }
-
-    int get_index() { return index; }
+    virtual ValueType next() = 0;
 
     virtual ValueType get_current_type() = 0;
     virtual std::string get_string() = 0;
-    virtual int get_integer() = 0;
+    virtual int64_t get_integer() = 0;
     virtual double get_floating() = 0;
     virtual bool get_boolean() = 0;
 
     private:
-    virtual void up() = 0; // go to the parent container of the current element
-    virtual void down() = 0; // go to the first element of the pointed container
-    virtual void advance_container() = 0; // go to next element of the current container
-
     std::string parser_name;
     ParsingResult parsing_result;
-    int index; // represents the numbers of next() required to arrive to the current value
 };
 
 class Parser 
 {
     public:
     Parser(std::string name) : name(name) {};
-    virtual std::unique_ptr<Traverser> parse(char* const json, int size) = 0;
+    virtual std::unique_ptr<Traverser> parse(const char* json, int size) = 0;
     virtual ~Parser() {};
     std::string get_name() { return name; }
     private:

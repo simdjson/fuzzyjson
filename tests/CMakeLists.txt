@@ -6,6 +6,7 @@ include_directories("../include")
 add_executable (tests unittests.cpp)
 
 add_definitions(-DTESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+add_definitions(-DTEST_DOCUMENTS="${CMAKE_CURRENT_SOURCE_DIR}/test_documents")
 
 macro(append var string)
   set(${var} "${${var}} ${string}")

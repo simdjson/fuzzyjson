@@ -20,6 +20,13 @@
 namespace fuzzyjson
 {
 
+template<typename T>
+bool floatings_are_equal(T floating1, T floating2) {
+    T biggest = std::fmax(std::fabs(floating1), std::fabs(floating2));
+    T diff = std::fabs(floating1 - floating2);
+    return diff <= std::numeric_limits<T>::epsilon() * biggest;
+}
+
 class FuzzyJson
 {
     public:
