@@ -75,10 +75,6 @@ int main(int argc, char *argv[]) {
   if (optind >= argc) {
     std::cerr << "Usage: " << argv[0] << " <jsonfile>" << std::endl;
     std::cerr << "Or " << argv[0] << " -v <jsonfile>" << std::endl;
-    std::cerr
-        << "To enable parsers that are not standard compliant, use the -a "
-           "flag"
-        << std::endl;
     std::cerr << "The '-t' flag outputs a table. " << std::endl;
     exit(1);
   }
@@ -112,7 +108,7 @@ int main(int argc, char *argv[]) {
     std::cerr << "can't allocate memory" << std::endl;
     return EXIT_FAILURE;
   }
-  int repeat = 50;
+  int repeat =  (p.size() < 1 * 1000 * 1000 ? 1000 : 10);
   int volume = p.size();
   if (justdata) {
     printf("%-42s %20s %20s %20s %20s \n", "name", "cycles_per_byte",

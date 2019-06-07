@@ -48,6 +48,30 @@ struct simd_input {
 #endif
 };
 
+really_inline uint64_t compute_quote_mask(uint64_t quote_bits) {
+  // In practice, if you have NEON or __PCLMUL__, you would
+  // always want to use them, but it might be useful, for research
+  // purposes, to disable it willingly, that's what SIMDJSON_AVOID_CLMUL
+  // does.
+  // Also: we don't know of an instance where AVX2 is supported but 
+  // where clmul is not supported, so check for both, to be sure.
+#if (defined(__PCLMUL__) || defined(__AVX2__)) && !defined(SIMDJSON_AVOID_CLMUL)
+  uint64_t quote_mask = _mm_cvtsi128_si64(_mm_clmulepi64_si128(
+      _mm_set_epi64x(0ULL, quote_bits), _mm_set1_epi8(0xFF), 0));
+#elif defined(__ARM_NEON) && !defined(SIMDJSON_AVOID_CLMUL)
+  uint64_t quote_mask = vmull_p64( -1ULL, quote_bits);
+#else
+  // this code should always be used if SIMDJSON_AVOID_CLMUL is defined.
+  uint64_t quote_mask = quote_bits ^ (quote_bits << 1);
+  quote_mask = quote_mask ^ (quote_mask << 2);
+  quote_mask = quote_mask ^ (quote_mask << 4);
+  quote_mask = quote_mask ^ (quote_mask << 8);
+  quote_mask = quote_mask ^ (quote_mask << 16);
+  quote_mask = quote_mask ^ (quote_mask << 32);
+#endif
+  return quote_mask;
+}
+
 really_inline simd_input fill_input(const uint8_t * ptr) {
   struct simd_input in;
 #ifdef __AVX2__
@@ -243,15 +267,7 @@ really_inline uint64_t find_quote_mask_and_bits(simd_input in, uint64_t odd_ends
     uint64_t &prev_iter_inside_quote, uint64_t &quote_bits, uint64_t &error_mask) {
   quote_bits = cmp_mask_against_input(in, '"');
   quote_bits = quote_bits & ~odd_ends;
-  // remove from the valid quoted region the unescapted characters.
-#ifdef __AVX2__
-  uint64_t quote_mask = _mm_cvtsi128_si64(_mm_clmulepi64_si128(
-      _mm_set_epi64x(0ULL, quote_bits), _mm_set1_epi8(0xFF), 0));
-#elif defined(__ARM_NEON)
-  uint64_t quote_mask = vmull_p64( -1ULL, quote_bits);
-#else
-#warning It appears that neither ARM NEON nor AVX2 are detected.
-#endif
+  uint64_t quote_mask = compute_quote_mask(quote_bits);
   quote_mask ^= prev_iter_inside_quote;
   // All Unicode characters may be placed within the
   // quotation marks, except for the characters that MUST be escaped:
@@ -279,6 +295,50 @@ really_inline void find_whitespace_and_structurals(simd_input in,
   // space 0x20, linefeed 0x0a, horizontal tab 0x09 and carriage return 0x0d
   // these go into the next 2 buckets of the comparison (8/16)
 #ifdef __AVX2__
+#ifdef SIMDJSON_NAIVE_STRUCTURAL
+  // You should never need this naive approach, but it can be useful
+  // for research purposes
+  const __m256i mask_open_brace = _mm256_set1_epi8(0x7b);
+  __m256i struct_lo = _mm256_cmpeq_epi8(in.lo, mask_open_brace);
+  __m256i struct_hi = _mm256_cmpeq_epi8(in.hi, mask_open_brace);
+  const __m256i mask_close_brace = _mm256_set1_epi8(0x7d);
+  struct_lo = _mm256_or_si256(struct_lo,_mm256_cmpeq_epi8(in.lo, mask_close_brace));
+  struct_hi = _mm256_or_si256(struct_hi,_mm256_cmpeq_epi8(in.hi, mask_close_brace));
+  const __m256i mask_open_bracket = _mm256_set1_epi8(0x5b);
+  struct_lo = _mm256_or_si256(struct_lo,_mm256_cmpeq_epi8(in.lo, mask_open_bracket));
+  struct_hi = _mm256_or_si256(struct_hi,_mm256_cmpeq_epi8(in.hi, mask_open_bracket));
+  const __m256i mask_close_bracket = _mm256_set1_epi8(0x5d);
+  struct_lo = _mm256_or_si256(struct_lo,_mm256_cmpeq_epi8(in.lo, mask_close_bracket));
+  struct_hi = _mm256_or_si256(struct_hi,_mm256_cmpeq_epi8(in.hi, mask_close_bracket));
+  const __m256i mask_column = _mm256_set1_epi8(0x3a);
+  struct_lo = _mm256_or_si256(struct_lo,_mm256_cmpeq_epi8(in.lo, mask_column));
+  struct_hi = _mm256_or_si256(struct_hi,_mm256_cmpeq_epi8(in.hi, mask_column));
+  const __m256i mask_comma = _mm256_set1_epi8(0x2c);
+  struct_lo = _mm256_or_si256(struct_lo,_mm256_cmpeq_epi8(in.lo, mask_comma));
+  struct_hi = _mm256_or_si256(struct_hi,_mm256_cmpeq_epi8(in.hi, mask_comma));
+  uint64_t structural_res_0 = static_cast<uint32_t>(_mm256_movemask_epi8(struct_lo));
+  uint64_t structural_res_1 = _mm256_movemask_epi8(struct_hi);
+  structurals = (structural_res_0 | (structural_res_1 << 32));
+
+  const __m256i mask_space = _mm256_set1_epi8(0x20);
+  __m256i space_lo = _mm256_cmpeq_epi8(in.lo, mask_space);
+  __m256i space_hi = _mm256_cmpeq_epi8(in.hi, mask_space);
+  const __m256i mask_linefeed = _mm256_set1_epi8(0x0a);
+  space_lo = _mm256_or_si256(space_lo,_mm256_cmpeq_epi8(in.lo, mask_linefeed));
+  space_hi = _mm256_or_si256(space_hi,_mm256_cmpeq_epi8(in.hi, mask_linefeed));
+  const __m256i mask_tab = _mm256_set1_epi8(0x09);
+  space_lo = _mm256_or_si256(space_lo,_mm256_cmpeq_epi8(in.lo, mask_tab));
+  space_hi = _mm256_or_si256(space_hi,_mm256_cmpeq_epi8(in.hi, mask_tab));
+  const __m256i mask_carriage = _mm256_set1_epi8(0x0d);
+  space_lo = _mm256_or_si256(space_lo,_mm256_cmpeq_epi8(in.lo, mask_carriage));
+  space_hi = _mm256_or_si256(space_hi,_mm256_cmpeq_epi8(in.hi, mask_carriage));
+
+  uint64_t ws_res_0 = static_cast<uint32_t>(_mm256_movemask_epi8(space_lo));
+  uint64_t ws_res_1 = _mm256_movemask_epi8(space_hi);
+  whitespace = (ws_res_0 | (ws_res_1 << 32));
+  // end of naive approach
+
+#else // SIMDJSON_NAIVE_STRUCTURAL
   const __m256i low_nibble_mask = _mm256_setr_epi8(
       16, 0, 0, 0, 0, 0, 0, 0, 0, 8, 12, 1, 2, 9, 0, 0, 
       16, 0, 0, 0, 0, 0, 0, 0, 0, 8, 12, 1, 2, 9, 0, 0);
@@ -318,6 +378,7 @@ really_inline void find_whitespace_and_structurals(simd_input in,
   uint64_t ws_res_0 = static_cast<uint32_t>(_mm256_movemask_epi8(tmp_ws_lo));
   uint64_t ws_res_1 = _mm256_movemask_epi8(tmp_ws_hi);
   whitespace = ~(ws_res_0 | (ws_res_1 << 32));
+#endif // SIMDJSON_NAIVE_STRUCTURAL
 #elif defined(__ARM_NEON)
 #ifndef FUNKY_BAD_TABLE
   const uint8x16_t low_nibble_mask = (uint8x16_t){ 
@@ -439,6 +500,25 @@ really_inline void find_whitespace_and_structurals(simd_input in,
 #endif
 }
 
+
+#ifdef SIMDJSON_NAIVE_FLATTEN // useful for benchmarking
+//
+// This is just a naive implementation. It should be normally
+// disable, but can be used for research purposes to compare
+// again our optimized version.
+really_inline void flatten_bits(uint32_t *base_ptr, uint32_t &base,
+                                uint32_t idx, uint64_t bits) {
+  uint32_t * out_ptr = base_ptr + base;
+  idx -= 64;
+  while(bits != 0) {
+      out_ptr[0] = idx + trailingzeroes(bits);
+      bits = bits & (bits - 1);
+      out_ptr++;
+  }
+  base = (out_ptr - base_ptr);
+}
+
+#else 
 // flatten out values in 'bits' assuming that they are are to have values of idx
 // plus their position in the bitvector, and store these indexes at
 // base_ptr[base] incrementing base as we go
@@ -504,6 +584,7 @@ really_inline void flatten_bits(uint32_t *base_ptr, uint32_t &base,
   }
   base = next_base;
 }
+#endif
 
 // return a updated structural bit vector with quoted contents cleared out and
 // pseudo-structural characters added to the mask
