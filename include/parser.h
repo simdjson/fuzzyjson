@@ -66,7 +66,6 @@ std::string valuetype_to_string(ValueType valuetype) {
         default:
             return "error";
     }
-
 }
 
 class Traverser
@@ -102,14 +101,12 @@ class Traverser
 class Parser 
 {
     public:
-    Parser(std::string name) : name(name) {};
+    Parser(std::string name) : name(name) {}
     virtual std::unique_ptr<Traverser> parse(const char* json, int size) = 0;
-    virtual ~Parser() {};
+    virtual ~Parser() {}
     std::string get_name() { return name; }
     private:
     std::string name;
 };
-
 }
-
 #endif

@@ -10,8 +10,11 @@ endif()
 macro(append var string)
   set(${var} "${${var}} ${string}")
 endmacro(append)
+
 append(CMAKE_EXE_LINKER_FLAGS "-fuse-ld=gold")
+if(NOT ${CMAKE_BUILD_TYPE} MATCHES "Release")
 append(CMAKE_CXX_FLAGS "-g3 -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=all")
+endif()
 
 include_directories("include")
 include_directories("dependencies/randomjson/include")

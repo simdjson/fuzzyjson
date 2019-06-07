@@ -34,6 +34,26 @@ ValueType get_value_type(const rapidjson::Value& value) {
     }
 }
 
+const std::unordered_map<rapidjson::ParseErrorCode, ParsingResult> rapidjson_result_correspondances {
+    { rapidjson::ParseErrorCode::kParseErrorNone, ParsingResult::ok },
+    { rapidjson::ParseErrorCode::kParseErrorDocumentEmpty, ParsingResult::other_error },
+    { rapidjson::ParseErrorCode::kParseErrorDocumentRootNotSingular, ParsingResult::other_error },
+    { rapidjson::ParseErrorCode::kParseErrorValueInvalid, ParsingResult::other_error },
+    { rapidjson::ParseErrorCode::kParseErrorObjectMissName, ParsingResult::other_error },
+    { rapidjson::ParseErrorCode::kParseErrorObjectMissColon, ParsingResult::other_error },
+    { rapidjson::ParseErrorCode::kParseErrorObjectMissCommaOrCurlyBracket, ParsingResult::other_error },
+    { rapidjson::ParseErrorCode::kParseErrorArrayMissCommaOrSquareBracket, ParsingResult::other_error },
+    { rapidjson::ParseErrorCode::kParseErrorStringUnicodeEscapeInvalidHex, ParsingResult::encoding_error },
+    { rapidjson::ParseErrorCode::kParseErrorStringUnicodeSurrogateInvalid, ParsingResult::string_error },
+    { rapidjson::ParseErrorCode::kParseErrorStringEscapeInvalid, ParsingResult::string_error },
+    { rapidjson::ParseErrorCode::kParseErrorStringMissQuotationMark, ParsingResult::string_error },
+    { rapidjson::ParseErrorCode::kParseErrorStringInvalidEncoding, ParsingResult::string_error },
+    { rapidjson::ParseErrorCode::kParseErrorNumberTooBig, ParsingResult::number_error },
+    { rapidjson::ParseErrorCode::kParseErrorNumberMissFraction, ParsingResult::number_error },
+    { rapidjson::ParseErrorCode::kParseErrorNumberMissExponent, ParsingResult::number_error },
+    { rapidjson::ParseErrorCode::kParseErrorTermination, ParsingResult::other_error },
+    { rapidjson::ParseErrorCode::kParseErrorUnspecificSyntaxError, ParsingResult::other_error },
+};
 class RapidjsonTraverser : public Traverser
 {
     // forward declarations
@@ -62,14 +82,20 @@ class RapidjsonTraverser : public Traverser
         : iterator(iterator)
         , end(end)
         , begin(true)
+        , is_key(true)
         {}
 
         ~ObjectTraverser() = default;
 
         ValueType next() override {
+            // The program won't crash if next() is called after the end.
+            // Also used when the object is empty.
+            if (iterator == end) {
+                return ValueType::end_of_container;
+            }
+
             if (begin) {
                 begin = false;
-                is_key = true;
                 return ValueType::key;
             }
 
@@ -96,14 +122,17 @@ class RapidjsonTraverser : public Traverser
             if (begin) {
                 return ValueType::object;
             }
+            if (is_key) {
+                return ValueType::key;
+            }
             return get_value_type(iterator->value);
         }
 
         std::string get_string() override { 
             if (is_key) {
-                return iterator->name.GetString();
+                return std::string(iterator->name.GetString(), iterator->name.GetStringLength());
             }
-            return iterator->value.GetString();
+            return std::string(iterator->value.GetString(), iterator->value.GetStringLength());
         }
         int64_t get_integer() override { return iterator->value.GetInt64(); }
         double get_floating() override { return iterator->value.GetDouble(); }
@@ -157,7 +186,7 @@ class RapidjsonTraverser : public Traverser
             return get_value_type(*iterator);
         }
 
-        std::string get_string() override { return iterator->GetString(); }
+        std::string get_string() override { return std::string(iterator->GetString(), iterator->GetStringLength()); }
         int64_t get_integer() override { return iterator->GetInt64(); }
         double get_floating() override { return iterator->GetDouble(); }
         bool get_boolean() override { return iterator->GetBool(); }
@@ -184,7 +213,7 @@ class RapidjsonTraverser : public Traverser
         ValueType next() override { return ValueType::end_of_document; }
         ValueType get_type() override { return get_value_type(*value); }
 
-        std::string get_string() override { return value->GetString(); }
+        std::string get_string() override { return std::string(value->GetString(), value->GetStringLength()); }
         int64_t get_integer() override { return value->GetInt64(); }
         double get_floating() override { return value->GetDouble(); }
         bool get_boolean() override { return value->GetBool(); }
@@ -262,8 +291,7 @@ class RapidjsonParser : public Parser {
     public:
     RapidjsonParser()
     : Parser("rapidjson")
-    {
-    };
+    {}
 
     ~RapidjsonParser() override = default;
 
@@ -273,34 +301,10 @@ class RapidjsonParser : public Parser {
         document.Parse(json, size);
 
         auto rapidjson_result = static_cast<rapidjson::ParseErrorCode>(document.GetParseError());
-        ParsingResult parsing_result = result_correspondances.at(rapidjson_result);
+        ParsingResult parsing_result = rapidjson_result_correspondances.at(rapidjson_result);
 
         return std::make_unique<RapidjsonTraverser>(get_name(), parsing_result, std::move(document));
     }
-
-    private:
-    rapidjson::ParseErrorCode last_result;
-
-    std::unordered_map<rapidjson::ParseErrorCode, ParsingResult> result_correspondances {
-        { rapidjson::ParseErrorCode::kParseErrorNone, ParsingResult::ok },
-        { rapidjson::ParseErrorCode::kParseErrorDocumentEmpty, ParsingResult::other_error },
-        { rapidjson::ParseErrorCode::kParseErrorDocumentRootNotSingular, ParsingResult::other_error },
-        { rapidjson::ParseErrorCode::kParseErrorValueInvalid, ParsingResult::other_error },
-        { rapidjson::ParseErrorCode::kParseErrorObjectMissName, ParsingResult::other_error },
-        { rapidjson::ParseErrorCode::kParseErrorObjectMissColon, ParsingResult::other_error },
-        { rapidjson::ParseErrorCode::kParseErrorObjectMissCommaOrCurlyBracket, ParsingResult::other_error },
-        { rapidjson::ParseErrorCode::kParseErrorArrayMissCommaOrSquareBracket, ParsingResult::other_error },
-        { rapidjson::ParseErrorCode::kParseErrorStringUnicodeEscapeInvalidHex, ParsingResult::encoding_error },
-        { rapidjson::ParseErrorCode::kParseErrorStringUnicodeSurrogateInvalid, ParsingResult::string_error },
-        { rapidjson::ParseErrorCode::kParseErrorStringEscapeInvalid, ParsingResult::string_error },
-        { rapidjson::ParseErrorCode::kParseErrorStringMissQuotationMark, ParsingResult::string_error },
-        { rapidjson::ParseErrorCode::kParseErrorStringInvalidEncoding, ParsingResult::string_error },
-        { rapidjson::ParseErrorCode::kParseErrorNumberTooBig, ParsingResult::number_error },
-        { rapidjson::ParseErrorCode::kParseErrorNumberMissFraction, ParsingResult::number_error },
-        { rapidjson::ParseErrorCode::kParseErrorNumberMissExponent, ParsingResult::number_error },
-        { rapidjson::ParseErrorCode::kParseErrorTermination, ParsingResult::other_error },
-        { rapidjson::ParseErrorCode::kParseErrorUnspecificSyntaxError, ParsingResult::other_error },
-    };
 };
 }
 
