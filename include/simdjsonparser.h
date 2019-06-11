@@ -12,6 +12,11 @@
 namespace fuzzyjson {
 
 class SimdjsonTraverser : public Traverser {
+    struct ContainerInfos {
+        ValueType type;
+        bool is_empty;
+    };
+
     public:
     // The SimdjsonTraverser will own the ParsedJson
     SimdjsonTraverser(std::string parser_name, ParsingResult result, ParsedJson* parsed_json)
@@ -20,52 +25,59 @@ class SimdjsonTraverser : public Traverser {
     , iterator(*parsed_json)
     {
         current_type = simdjsontype_to_fuzzytype(iterator.get_type());
-        if (current_type == ValueType::object || current_type == ValueType::array) {
-            container_stack.push(current_type);
-        }
     }
 
     ~SimdjsonTraverser() override { delete parsed_json; }
  
     ValueType next() override {
-        if (current_type == ValueType::end_of_document) {
-            return ValueType::end_of_document;
-        }
+        ValueType previous_type = current_type;
+        if (previous_type == ValueType::array || previous_type == ValueType::object) {
+            bool container_is_empty = false;
+            bool end_of_container = !iterator.down();
+            if (end_of_container) {
+                current_type = ValueType::end_of_container;
+                container_is_empty = true;
+            }
+            else {
+                if (previous_type == ValueType::object) {
+                    current_type = ValueType::key;
+                }
+                else {
+                    current_type = simdjsontype_to_fuzzytype(iterator.get_type());
+                }
+            }
+            ContainerInfos container_infos {previous_type, container_is_empty};
+            container_stack.push(container_infos);
 
-        if (current_type == ValueType::object) {
-            container_stack.push(current_type);
-            iterator.down();
-            current_type = ValueType::key;
             return current_type;
         }
 
-        if (current_type == ValueType::array) {
-            container_stack.push(current_type);
-            iterator.down();
-            current_type = simdjsontype_to_fuzzytype(iterator.get_type());
+        if (previous_type == ValueType::end_of_container) {
+            // if the container is empty then we're not actually into it.
+            if (!container_stack.top().is_empty) {
+                iterator.up();
+            }
+            container_stack.pop();
+        }
+
+        if (previous_type == ValueType::end_of_document || container_stack.size() == 0) {
+            current_type = ValueType::end_of_document;
             return current_type;
         }
 
         bool end_of_container = !iterator.next();
         if (end_of_container) {
-            iterator.up();
-            container_stack.pop();
-
-            if (container_stack.size() != 0) {
-                current_type = ValueType::end_of_container;
-            }
-            else {
-                current_type = ValueType::end_of_document;
-            }
+            current_type = ValueType::end_of_container;
             return current_type;
         }
-
-        if (container_stack.top() == ValueType::object && current_type != ValueType::key) {
+        
+        if (container_stack.top().type == ValueType::object && previous_type != ValueType::key) {
             current_type = ValueType::key;
         }
         else {
             current_type = simdjsontype_to_fuzzytype(iterator.get_type());
         }
+
         return current_type;
     }
 
@@ -77,7 +89,7 @@ class SimdjsonTraverser : public Traverser {
 
     private:
     ValueType current_type;
-    std::stack<ValueType> container_stack;
+    std::stack<ContainerInfos> container_stack;
     ParsedJson::iterator iterator;
     ParsedJson* parsed_json;
 
@@ -88,6 +100,7 @@ class SimdjsonTraverser : public Traverser {
             case '[':
                 return ValueType::array;
             case '"':
+
                 return ValueType::string;
             case 'l':
                 return ValueType::integer;
@@ -104,6 +117,13 @@ class SimdjsonTraverser : public Traverser {
     }
 };
 
+std::unordered_map<simdjson::errorValues, ParsingResult> simdjson_result_correspondances {
+    { simdjson::SUCCESS, ParsingResult::ok },
+    { simdjson::CAPACITY, ParsingResult::other_error },
+    { simdjson::TAPE_ERROR, ParsingResult::other_error },
+    { simdjson::DEPTH_ERROR, ParsingResult::other_error },
+};
+
 
 class SimdjsonParser : public Parser {
     public:
@@ -115,26 +135,15 @@ class SimdjsonParser : public Parser {
     
     std::unique_ptr<Traverser> parse(const char* json, int size) override
     {
-        ParsedJson* parsed_json = new ParsedJson();
+        ParsedJson* parsed_json = new ParsedJson(); // The traverser will take onership of it
         bool allocation_is_successful = parsed_json->allocateCapacity(size);
         if (!allocation_is_successful) {
-            delete parsed_json;
-            return std::make_unique<SimdjsonTraverser>(get_name(), ParsingResult::other_error, nullptr);
+            return std::make_unique<SimdjsonTraverser>(get_name(), ParsingResult::other_error, parsed_json);
         }
         auto simdjson_result = static_cast<simdjson::errorValues>(json_parse(json, size, *parsed_json));
-        ParsingResult result = result_correspondances.at(simdjson_result);
+        ParsingResult result = simdjson_result_correspondances.at(simdjson_result);
         return std::make_unique<SimdjsonTraverser>(get_name(), result, parsed_json);
     }
-
-    private:
-    simdjson::errorValues last_result;
-
-    std::unordered_map<simdjson::errorValues, ParsingResult> result_correspondances {
-        { simdjson::SUCCESS, ParsingResult::ok },
-        { simdjson::CAPACITY, ParsingResult::other_error },
-        { simdjson::TAPE_ERROR, ParsingResult::other_error },
-        { simdjson::DEPTH_ERROR, ParsingResult::other_error },
-    };
 };
 }
 

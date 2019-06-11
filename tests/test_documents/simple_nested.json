@@ -1,10 +1,20 @@
 [
+    {},
+    [],
     1,
-    {
-        "key": 1.2,
-        "str": "string"
-    },
+    1.2,
+    "string",
     true,
     false,
-    null
+    null,
+    {
+        "object": {},
+        "array": [],
+        "integer": 1,
+        "floating": 1.2,
+        "str": "string",
+        "true": true,
+        "false": false,
+        "null:": null
+    }
 ]
