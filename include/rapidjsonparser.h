@@ -8,52 +8,6 @@
 
 namespace fuzzyjson {
 
-ValueType get_value_type(const rapidjson::Value& value) {
-    rapidjson::Type rapidjson_type = value.GetType();
-    switch (rapidjson_type) {
-        case rapidjson::Type::kNullType :
-            return ValueType::null;
-        case rapidjson::Type::kFalseType :
-        case rapidjson::Type::kTrueType :
-            return ValueType::boolean;
-        case rapidjson::Type::kObjectType :
-            return ValueType::object;
-        case rapidjson::Type::kArrayType :
-            return ValueType::array;
-        case rapidjson::Type::kStringType :
-            return ValueType::string;
-        case rapidjson::Type::kNumberType :
-            if (value.IsInt()) {
-                return ValueType::integer;
-            }
-            else { // we assume value.IsDouble() is true
-                return ValueType::floating;
-            }
-        default: // something went wrong
-            return ValueType::error;
-    }
-}
-
-const std::unordered_map<rapidjson::ParseErrorCode, ParsingResult> rapidjson_result_correspondances {
-    { rapidjson::ParseErrorCode::kParseErrorNone, ParsingResult::ok },
-    { rapidjson::ParseErrorCode::kParseErrorDocumentEmpty, ParsingResult::other_error },
-    { rapidjson::ParseErrorCode::kParseErrorDocumentRootNotSingular, ParsingResult::other_error },
-    { rapidjson::ParseErrorCode::kParseErrorValueInvalid, ParsingResult::other_error },
-    { rapidjson::ParseErrorCode::kParseErrorObjectMissName, ParsingResult::other_error },
-    { rapidjson::ParseErrorCode::kParseErrorObjectMissColon, ParsingResult::other_error },
-    { rapidjson::ParseErrorCode::kParseErrorObjectMissCommaOrCurlyBracket, ParsingResult::other_error },
-    { rapidjson::ParseErrorCode::kParseErrorArrayMissCommaOrSquareBracket, ParsingResult::other_error },
-    { rapidjson::ParseErrorCode::kParseErrorStringUnicodeEscapeInvalidHex, ParsingResult::encoding_error },
-    { rapidjson::ParseErrorCode::kParseErrorStringUnicodeSurrogateInvalid, ParsingResult::string_error },
-    { rapidjson::ParseErrorCode::kParseErrorStringEscapeInvalid, ParsingResult::string_error },
-    { rapidjson::ParseErrorCode::kParseErrorStringMissQuotationMark, ParsingResult::string_error },
-    { rapidjson::ParseErrorCode::kParseErrorStringInvalidEncoding, ParsingResult::string_error },
-    { rapidjson::ParseErrorCode::kParseErrorNumberTooBig, ParsingResult::number_error },
-    { rapidjson::ParseErrorCode::kParseErrorNumberMissFraction, ParsingResult::number_error },
-    { rapidjson::ParseErrorCode::kParseErrorNumberMissExponent, ParsingResult::number_error },
-    { rapidjson::ParseErrorCode::kParseErrorTermination, ParsingResult::other_error },
-    { rapidjson::ParseErrorCode::kParseErrorUnspecificSyntaxError, ParsingResult::other_error },
-};
 class RapidjsonTraverser : public Traverser
 {
     // forward declarations
@@ -232,9 +186,35 @@ class RapidjsonTraverser : public Traverser
         rapidjson::Value* value;
     };
 
+    static ValueType get_value_type(const rapidjson::Value& value) {
+        rapidjson::Type rapidjson_type = value.GetType();
+        switch (rapidjson_type) {
+            case rapidjson::Type::kNullType :
+                return ValueType::null;
+            case rapidjson::Type::kFalseType :
+            case rapidjson::Type::kTrueType :
+                return ValueType::boolean;
+            case rapidjson::Type::kObjectType :
+                return ValueType::object;
+            case rapidjson::Type::kArrayType :
+                return ValueType::array;
+            case rapidjson::Type::kStringType :
+                return ValueType::string;
+            case rapidjson::Type::kNumberType :
+                if (value.IsInt()) {
+                    return ValueType::integer;
+                }
+                else { // we assume value.IsDouble() is true
+                    return ValueType::floating;
+                }
+            default: // something went wrong
+                return ValueType::error;
+        }
+    }
+
     public:
-    RapidjsonTraverser(std::string parser_name, ParsingResult parsing_result, rapidjson::Document document)
-    : Traverser(parser_name, parsing_result)
+    RapidjsonTraverser(std::string parser_name, ParsingState parsing_state, rapidjson::Document document)
+    : Traverser(parser_name, parsing_state)
     , document(std::move(document))
     {
         current_type = get_value_type(this->document);
@@ -282,7 +262,7 @@ class RapidjsonTraverser : public Traverser
     bool get_boolean() { return container_stack.top()->get_boolean(); }
 
     private:
-    rapidjson::Document document; // the variable is not used, but it owns pointers that are used everywhere
+    rapidjson::Document document; // the variable itself is not used, but it owns pointers that are used everywhere
     ValueType current_type;
     std::stack<std::unique_ptr<TraverserHelper>> container_stack;
 };
@@ -301,9 +281,9 @@ class RapidjsonParser : public Parser {
         document.Parse(json, size);
 
         auto rapidjson_result = static_cast<rapidjson::ParseErrorCode>(document.GetParseError());
-        ParsingResult parsing_result = rapidjson_result_correspondances.at(rapidjson_result);
+        ParsingState state = rapidjson_result == rapidjson::ParseErrorCode::kParseErrorNone ? ParsingState::ok : ParsingState::error;
 
-        return std::make_unique<RapidjsonTraverser>(get_name(), parsing_result, std::move(document));
+        return std::make_unique<RapidjsonTraverser>(get_name(), state, std::move(document));
     }
 };
 }

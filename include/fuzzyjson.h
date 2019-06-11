@@ -2,6 +2,8 @@
 #define FUZZYJSON_H
 
 #include <cstring>
+#include <chrono>
+#include <ctime>
 #include <fstream>
 #include <iostream>
 #include <stdio.h>
@@ -39,7 +41,7 @@ class FuzzyJson
 
     private:
     void compare_parsing();
-    void generate_report(std::vector<std::unique_ptr<Traverser>>& traversers);
+    void generate_report(std::vector<std::unique_ptr<Traverser>>& traversers, int value_index);
     randomjson::RandomJson random_json;
     std::vector<std::unique_ptr<Parser>> parsers;
 };
@@ -47,6 +49,7 @@ class FuzzyJson
 FuzzyJson::FuzzyJson(int size)
 : random_json(size)
 {
+    random_json.save("test.json");
 }
 
 FuzzyJson::FuzzyJson(std::string json_filename)
@@ -59,8 +62,8 @@ void FuzzyJson::fuzz()
     std::cout << random_json.get_generation_seed() << std::endl;
     random_json.save("test.json");
     // mutations and comparisons
-    for (int no_mutation = 0; no_mutation < 10; no_mutation++) {
-        std::cout << "No mutation : " << no_mutation << std::endl;
+    int max_mutations = 1;
+    for (int no_mutation = 0; no_mutation < max_mutations; no_mutation++) {
         //random_json.mutate();
         // parsing
         compare_parsing();
@@ -69,33 +72,34 @@ void FuzzyJson::fuzz()
 
 void FuzzyJson::compare_parsing() {
     // getting the traversers
+    // The first traverser will be compared to all the others.
     std::vector<std::unique_ptr<Traverser>> traversers;
     for (auto& parser : parsers) {
         traversers.push_back(parser->parse(random_json.get_json(), random_json.get_size()));
     }
 
-    // Compare the parsing results
-    std::cout << "comparing results" << std::endl;
-    ParsingResult first_result = traversers.at(0)->get_parsing_result();
+    // Compare the parsing statess
+    ParsingState first_parsing_state = traversers.at(0)->get_parsing_state();
     for (int i = 1; i < traversers.size(); i++) {
-        // If all results are not identical, we generate a report
-        if (first_result != traversers.at(i)->get_parsing_result()) {
-            generate_report(traversers);
+        // If all states are not identical, we generate a report
+        if (first_parsing_state != traversers.at(i)->get_parsing_state()) {
+            generate_report(traversers, -1);
             break;
         }
     }
 
     // Compare parsings
-    std::cout << "comparing parsings" << std::endl;
-    int no_value = 0;
+    int value_index = 0;
     const int max_values = 1024; 
-    while (no_value < max_values)
+    while (value_index < max_values)
     {
         ValueType current_type = traversers.at(0)->get_current_type();
         for (int i = 1; i < traversers.size(); i++) {
-            // If all results are not identical, we generate a report
+            // If all types are not identical, we generate a report
             if (current_type != traversers.at(i)->get_current_type()) {
-                generate_report(traversers);
+                generate_report(traversers, value_index);
+                traversers.at(i)->next();
+                continue; // might crash if we try to read a wrong type
             }
             bool different = false;
             switch (current_type) {
@@ -120,7 +124,7 @@ void FuzzyJson::compare_parsing() {
                 case ValueType::floating : {
                     double leader = traversers.at(0)->get_floating();
                     double other = traversers.at(i)->get_floating();
-                    different = !floatings_are_equal(leader, other);
+                    //different = !floatings_are_equal(leader, other);
                     break;
                 }
                 case ValueType::boolean : {
@@ -133,8 +137,8 @@ void FuzzyJson::compare_parsing() {
                     break;
             }
             if (different) {
-                generate_report(traversers);
-                break;
+                generate_report(traversers, value_index);
+                //break;
             }
             traversers.at(i)->next();
         }
@@ -142,14 +146,17 @@ void FuzzyJson::compare_parsing() {
             break;
         }
         traversers.at(0)->next();
-        no_value++;
+        value_index++;
     }
     
 }
 
-void FuzzyJson::generate_report(std::vector<std::unique_ptr<Traverser>>& traversers)
+void FuzzyJson::generate_report(std::vector<std::unique_ptr<Traverser>>& traversers, int value_index)
 {
-    //std::cout << "ggegeggegeg";
+    std::cout << "report" << std::endl;
+    auto nanoseconds = std::chrono::system_clock::now();
+    std::time_t time = std::chrono::system_clock::to_time_t(nanoseconds);
+    std::string pretty_date(std::ctime(&time));
     rapidjson::StringBuffer string_buffer;
     rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(string_buffer);
     writer.StartObject();
@@ -159,8 +166,8 @@ void FuzzyJson::generate_report(std::vector<std::unique_ptr<Traverser>>& travers
     switch (random_json.get_provenance_type()) {
         case randomjson::ProvenanceType::seed :
             writer.String("seed");
-            writer.Key("source_name");
-            writer.Uint(random_json.get_generation_seed());
+            writer.Key("generation_seed");
+            writer.Int(random_json.get_generation_seed());
             break;
         case randomjson::ProvenanceType::file :
             writer.String("file");
@@ -168,10 +175,12 @@ void FuzzyJson::generate_report(std::vector<std::unique_ptr<Traverser>>& travers
             writer.String(random_json.get_filename().c_str());
             break;
     }
+    writer.Key("size");
+    writer.Int(random_json.get_size());
     writer.Key("mutation_seed");
-    writer.Uint(random_json.get_mutation_seed());
+    writer.Int(random_json.get_mutation_seed());
     writer.Key("number_of_mutations");
-    writer.Uint(random_json.get_number_of_mutations());
+    writer.Int(random_json.get_number_of_mutations());
     writer.EndObject();
     writer.Key("parsing_results");
     writer.StartArray();
@@ -179,13 +188,43 @@ void FuzzyJson::generate_report(std::vector<std::unique_ptr<Traverser>>& travers
         writer.StartObject();
         writer.Key("parser_name");
         writer.String(traverser->get_parser_name().c_str());
-        writer.Key("result");
-        writer.String(traverser->get_result_string().c_str());
+        writer.Key("parsing_state");
+        writer.String(traverser->get_parsing_state_as_string().c_str());
+        if (value_index >= 0) {
+            writer.Key("value_index");
+            writer.Int(value_index);
+            writer.Key("value_type");
+            ValueType value_type = traverser->get_current_type();
+            writer.String(valuetype_to_string(value_type).c_str());
+            switch (value_type) {
+                case ValueType::string :
+                    writer.String("value");
+                    writer.String(traverser->get_string().c_str());
+                    break;
+                case ValueType::integer :
+                    writer.String("value");
+                    writer.Int(traverser->get_integer());
+                    break;
+                case ValueType::floating :
+                    writer.String("value");
+                    writer.Double(traverser->get_floating());
+                    break;
+                case ValueType::boolean :
+                    writer.String("value");
+                    writer.Bool(traverser->get_boolean());
+                    break;
+            }
+        }
         writer.EndObject();
     }
     writer.EndArray();
     writer.EndObject();
     
+    // write file
+    int size = string_buffer.GetSize();
+    std::fstream file(std::string("fuzzyreport_")+pretty_date+".json", std::ios::out | std::ios::binary);
+    file.write(string_buffer.GetString(), sizeof(char)*size);
+    file.close();
 }
 
 }

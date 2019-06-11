@@ -19,8 +19,8 @@ class SimdjsonTraverser : public Traverser {
 
     public:
     // The SimdjsonTraverser will own the ParsedJson
-    SimdjsonTraverser(std::string parser_name, ParsingResult result, ParsedJson* parsed_json)
-    : Traverser(parser_name, result)
+    SimdjsonTraverser(std::string parser_name, ParsingState parsing_state, ParsedJson* parsed_json)
+    : Traverser(parser_name, parsing_state)
     , parsed_json(parsed_json)
     , iterator(*parsed_json)
     {
@@ -117,13 +117,6 @@ class SimdjsonTraverser : public Traverser {
     }
 };
 
-std::unordered_map<simdjson::errorValues, ParsingResult> simdjson_result_correspondances {
-    { simdjson::SUCCESS, ParsingResult::ok },
-    { simdjson::CAPACITY, ParsingResult::other_error },
-    { simdjson::TAPE_ERROR, ParsingResult::other_error },
-    { simdjson::DEPTH_ERROR, ParsingResult::other_error },
-};
-
 
 class SimdjsonParser : public Parser {
     public:
@@ -138,11 +131,11 @@ class SimdjsonParser : public Parser {
         ParsedJson* parsed_json = new ParsedJson(); // The traverser will take onership of it
         bool allocation_is_successful = parsed_json->allocateCapacity(size);
         if (!allocation_is_successful) {
-            return std::make_unique<SimdjsonTraverser>(get_name(), ParsingResult::other_error, parsed_json);
+            return std::make_unique<SimdjsonTraverser>(get_name(), ParsingState::error, parsed_json);
         }
         auto simdjson_result = static_cast<simdjson::errorValues>(json_parse(json, size, *parsed_json));
-        ParsingResult result = simdjson_result_correspondances.at(simdjson_result);
-        return std::make_unique<SimdjsonTraverser>(get_name(), result, parsed_json);
+        ParsingState state = simdjson_result == simdjson::errorValues::SUCCESS ? ParsingState::ok : ParsingState::error;
+        return std::make_unique<SimdjsonTraverser>(get_name(), state, parsed_json);
     }
 };
 }

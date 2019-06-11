@@ -1,2 +1,5 @@
-build
 .vscode
+build
+dependencies/simdjson
+dependencies/rapidjson
+release

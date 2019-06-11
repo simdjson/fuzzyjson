@@ -25,7 +25,7 @@ void test_one_number_document_parsing(std::shared_ptr<Parser> parser) {
     const Document json(std::string(TEST_DOCUMENTS)+"/one_number.json");
 
     std::unique_ptr<Traverser> traverser(parser->parse(json.data.get(), json.size));
-    assert(traverser->get_parsing_result() == ParsingResult::ok);
+    assert(traverser->get_parsing_state() == ParsingState::ok);
     assert(traverser->get_current_type() == ValueType::integer);
     assert(traverser->get_integer() == 1);
 }
@@ -33,13 +33,8 @@ void test_one_number_document_parsing(std::shared_ptr<Parser> parser) {
 void test_simple_nested_document_parsing(std::shared_ptr<Parser> parser) {
     const Document json(std::string(TEST_DOCUMENTS)+"/simple_nested.json");
     std::unique_ptr<Traverser> traverser(parser->parse(json.data.get(), json.size));
-    assert(traverser->get_parsing_result() == ParsingResult::ok);
+    assert(traverser->get_parsing_state() == ParsingState::ok);
     assert(traverser->get_current_type() == ValueType::array);
-    /*std::cout << valuetype_to_string(traverser->get_current_type()) << std::endl;
-    std::cout << valuetype_to_string(traverser->next()) << std::endl;
-    std::cout << valuetype_to_string(traverser->next()) << std::endl;
-    std::cout << valuetype_to_string(traverser->next()) << std::endl;
-    std::cout << valuetype_to_string(traverser->next()) << std::endl;*/
     assert(traverser->next() == ValueType::object);
     assert(traverser->next() == ValueType::end_of_container);
     assert(traverser->next() == ValueType::array);
@@ -105,33 +100,73 @@ void test_fuzz() {
     fuzzy.add_parser(std::move(mock1_parser));
     fuzzy.add_parser(std::move(mock2_parser));*/
 
-    FuzzyJson fuzzy(100);
+    FuzzyJson fuzzy(10000);
 
     fuzzy.add_parser(std::make_unique<SimdjsonParser>());
     fuzzy.add_parser(std::make_unique<RapidjsonParser>());
-    
 
     fuzzy.fuzz();
 }
 
-void t(std::shared_ptr<Parser> parser) {
-    const Document json("error.json");
-    std::unique_ptr<Traverser> traverser(parser->parse(json.data.get(), json.size));
-    assert(traverser->get_parsing_result() == ParsingResult::ok);
-    assert(traverser->get_current_type() == ValueType::floating);
-    std::cout << traverser->get_floating() << std::endl;
+#include "rapidjson/document.h"
+#include "rapidjson/prettywriter.h"
+#include "rapidjson/stringbuffer.h"
+void t() {
+    rapidjson::Document d;
+    d.SetObject();
+    //rapidjson::Value contact(rapidjson::kObject);
+    d.AddMember("name", "Milo", d.GetAllocator());
+    d.AddMember("married", true, d.GetAllocator());
+
+
+    rapidjson::StringBuffer buffer;
+    rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+    d.Accept(writer);
+    const char* json = buffer.GetString();
+    std::cout << json << std::endl;
+}
+
+void t2() {
+    /*FuzzyJson fuzzy(std::string(TESTS_DIR)+"/test.json");
+    auto mock1_parser = std::make_unique<MockParser>("Mock1", ParsingResult::ok);
+    auto mock2_parser = std::make_unique<MockParser>("Mock2", ParsingResult::other_error);
+    fuzzy.add_parser(std::move(mock1_parser));
+    fuzzy.add_parser(std::move(mock2_parser));*/
+
+    FuzzyJson fuzzy(1000);
+    fuzzy.add_parser(std::make_unique<RapidjsonParser>());
+    fuzzy.add_parser(std::make_unique<SimdjsonParser>());
+    fuzzy.fuzz();
 }
 }
 
 int main() {
 
-    //auto rapid = std::make_shared<fuzzyjson::RapidjsonParser>();
-    //auto simd = std::make_shared<fuzzyjson::SimdjsonParser>();
+    auto rapid = std::make_shared<fuzzyjson::RapidjsonParser>();
+    auto simd = std::make_shared<fuzzyjson::SimdjsonParser>();
     //std::cout << "rapid" << std::endl;
     //fuzzyjson::t(rapid);
+    //fuzzyjson::t(simd);
     //fuzzyjson::test_rapidjson();
-    fuzzyjson::test_simdjson();
-    //for (int i = 0; i < 10000; i++)
-    //fuzzyjson::test_fuzz();
+    //fuzzyjson::test_simdjson();
+    //fuzzyjson::t();
+    for (int i = 0; i < 10000; i++)
+    fuzzyjson::test_fuzz();
     return 0;
 }
+/*
+#include <iostream>
+#include <iomanip>
+#include <ctime>
+#include <chrono>
+
+int main ()
+{
+  using std::chrono::system_clock;
+  std::time_t tt = system_clock::to_time_t (system_clock::now());
+
+  struct std::tm* ptm = std::localtime(&tt);
+  std::cout << std::put_time(ptm, "%F%T") << '\n';
+
+  return 0;
+}*/

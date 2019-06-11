@@ -8,21 +8,15 @@
 namespace fuzzyjson
 {
 
-enum class ParsingResult
+enum class ParsingState
 {
     ok,
-    number_error,
-    string_error,
-    encoding_error,
-    other_error,
+    error,
 };
 
-std::unordered_map<ParsingResult, std::string> result_to_string {
-    { ParsingResult::ok , "ok"},
-    { ParsingResult::number_error, "number_error" },
-    { ParsingResult::string_error, "string_error" },
-    { ParsingResult::encoding_error, "encoding_error" },
-    { ParsingResult::other_error, "other_error" },
+std::unordered_map<ParsingState, std::string> parsing_state_to_string {
+    { ParsingState::ok , "ok"},
+    { ParsingState::error, "error" },
 };
 
 enum class ValueType
@@ -71,18 +65,18 @@ std::string valuetype_to_string(ValueType valuetype) {
 class Traverser
 {
     public:
-    Traverser(std::string parser_name, ParsingResult parsing_result)
+    Traverser(std::string parser_name, ParsingState parsing_state)
     : parser_name(parser_name)
-    , parsing_result(parsing_result)
+    , parsing_state(parsing_state)
     {}
     
     virtual ~Traverser() {}
 
     std::string get_parser_name() { return parser_name; }
-    ParsingResult get_parsing_result() { return parsing_result; }
+    ParsingState get_parsing_state() { return parsing_state; }
 
-    std::string get_result_string() {
-        return result_to_string.at(parsing_result);
+    std::string get_parsing_state_as_string() {
+        return parsing_state_to_string.at(parsing_state);
     }
 
     virtual ValueType next() = 0;
@@ -95,7 +89,7 @@ class Traverser
 
     private:
     std::string parser_name;
-    ParsingResult parsing_result;
+    ParsingState parsing_state;
 };
 
 class Parser 
