@@ -82,7 +82,7 @@ class SimdjsonTraverser : public Traverser {
     }
 
     ValueType get_current_type() override { return current_type; }
-    std::string get_string() override { return iterator.get_string(); }
+    std::string get_string() override { return std::string(iterator.get_string(), iterator.get_string_length()); }
     int64_t get_integer() override { return iterator.get_integer(); }
     double get_floating() override { return iterator.get_double(); }
     bool get_boolean() override { return iterator.is_true(); }
