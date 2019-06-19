@@ -100,7 +100,6 @@ class SimdjsonTraverser : public Traverser {
             case '[':
                 return ValueType::array;
             case '"':
-
                 return ValueType::string;
             case 'l':
                 return ValueType::integer;
@@ -128,14 +127,19 @@ class SimdjsonParser : public Parser {
     
     std::unique_ptr<Traverser> parse(const char* json, int size) override
     {
-        ParsedJson* parsed_json = new ParsedJson(); // The traverser will take onership of it
+        ParsedJson* parsed_json = new ParsedJson(); // The traverser will take ownership of it
         bool allocation_is_successful = parsed_json->allocateCapacity(size);
         if (!allocation_is_successful) {
-            return std::make_unique<SimdjsonTraverser>(get_name(), ParsingState::error, parsed_json);
+            return std::make_unique<InvalidTraverser>(get_name());
         }
         auto simdjson_result = static_cast<simdjson::errorValues>(json_parse(json, size, *parsed_json));
-        ParsingState state = simdjson_result == simdjson::errorValues::SUCCESS ? ParsingState::ok : ParsingState::error;
-        return std::make_unique<SimdjsonTraverser>(get_name(), state, parsed_json);
+        if (simdjson_result == simdjson::errorValues::SUCCESS) {
+            return std::make_unique<SimdjsonTraverser>(get_name(), ParsingState::ok, parsed_json);
+        }
+        else {
+            return std::make_unique<InvalidTraverser>(get_name());
+        }
+        
     }
 };
 }

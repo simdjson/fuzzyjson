@@ -92,6 +92,23 @@ class Traverser
     ParsingState parsing_state;
 };
 
+class InvalidTraverser : public Traverser
+{
+    public:
+    InvalidTraverser(std::string parser_name)
+    : Traverser(parser_name, ParsingState::error)
+    {}
+
+    ~InvalidTraverser() = default;
+    // getters return arbitratry values. There is no valid reason to call them.
+    ValueType next() override { return ValueType::error; }
+    ValueType get_current_type() override { return ValueType::error; }
+    std::string get_string() override { return ""; }
+    int64_t get_integer() override { return 0; }
+    double get_floating() override { return 0.0; }
+    bool get_boolean() override { return false; }
+};
+
 class Parser 
 {
     public:

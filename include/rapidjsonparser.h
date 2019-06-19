@@ -1,6 +1,7 @@
 #ifndef RAPIDJSONPARSER_H
 #define RAPIDJSONPARSER_H
 
+#include <memory>
 #include <string>
 
 #include "parser.h"

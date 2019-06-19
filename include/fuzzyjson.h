@@ -22,18 +22,24 @@
 namespace fuzzyjson
 {
 
-template<typename T>
-bool floatings_are_equal(T floating1, T floating2) {
-    T biggest = std::fmax(std::fabs(floating1), std::fabs(floating2));
-    T diff = std::fabs(floating1 - floating2);
-    return diff <= std::numeric_limits<T>::epsilon() * biggest;
+bool floatings_are_equal(double floating1, double floating2, double precision) {
+    double biggest = std::fmax(std::fabs(floating1), std::fabs(floating2));
+    double diff = std::fabs(floating1 - floating2);
+    return diff <= precision*biggest;
 }
+
+struct FuzzyJsonSettings {
+    int id = 0; // An identifier for the processus. Used in parallelism.
+    int max_mutations = 10000;
+    double comparison_precision = std::numeric_limits<double>::epsilon();
+    bool verbose = false;
+};
 
 class FuzzyJson
 {
     public:
-    FuzzyJson(int size); // a random json file will be generated
-    FuzzyJson(std::string json_filename);
+    FuzzyJson(const randomjson::RandomJsonSettings& json_settings, FuzzyJsonSettings fuzzy_settings = FuzzyJsonSettings{});
+
     void add_parser(std::unique_ptr<Parser> parser) {
         parsers.push_back(std::move(parser));
     }
@@ -42,35 +48,36 @@ class FuzzyJson
     private:
     void compare_parsing();
     void generate_report(std::vector<std::unique_ptr<Traverser>>& traversers, int value_index);
+    std::string id;
     randomjson::RandomJson random_json;
+    FuzzyJsonSettings settings;
     std::vector<std::unique_ptr<Parser>> parsers;
 };
 
-FuzzyJson::FuzzyJson(int size)
-: random_json(size)
-{
-    random_json.save("test.json");
-}
-
-FuzzyJson::FuzzyJson(std::string json_filename)
-: random_json(json_filename)
-{
-}
+FuzzyJson::FuzzyJson(const randomjson::RandomJsonSettings& json_settings, FuzzyJsonSettings fuzzy_settings)
+: id(std::to_string(settings.id))
+, random_json(json_settings)
+, settings(fuzzy_settings)
+{}
 
 void FuzzyJson::fuzz()
 {
-    std::cout << random_json.get_generation_seed() << std::endl;
-    random_json.save("test.json");
+    if (settings.verbose) {
+        std::cout << "seed " << random_json.get_generation_seed() << std::endl;
+    }
     // mutations and comparisons
-    int max_mutations = 1;
-    for (int no_mutation = 0; no_mutation < max_mutations; no_mutation++) {
-        //random_json.mutate();
-        // parsing
+    for (int no_mutation = 0; no_mutation < settings.max_mutations; no_mutation++) {
+        random_json.save(std::string("temp-")+id+".json"); // we save a copy in case of unexpected crash
         compare_parsing();
+        if (settings.verbose) {
+            std::cout << "mutation " << no_mutation << std::endl;
+        }
+        random_json.mutate();
     }
 }
 
-void FuzzyJson::compare_parsing() {
+void FuzzyJson::compare_parsing()
+{
     // getting the traversers
     // The first traverser will be compared to all the others.
     std::vector<std::unique_ptr<Traverser>> traversers;
@@ -78,14 +85,29 @@ void FuzzyJson::compare_parsing() {
         traversers.push_back(parser->parse(random_json.get_json(), random_json.get_size()));
     }
 
-    // Compare the parsing statess
     ParsingState first_parsing_state = traversers.at(0)->get_parsing_state();
+
+    // Compare the parsing states
     for (int i = 1; i < traversers.size(); i++) {
         // If all states are not identical, we generate a report
         if (first_parsing_state != traversers.at(i)->get_parsing_state()) {
             generate_report(traversers, -1);
-            break;
+            return;
         }
+    }
+
+    // If all parsings failed
+    if (first_parsing_state == ParsingState::error) {
+        if (random_json.get_number_of_mutations() == 0) {
+            // There might be something we'd like to do in that case.
+            // Make a report to debug the json generator and start with a new seed, for example.
+        }
+
+        random_json.reverse_mutation();
+        if (settings.verbose) {
+            std::cout << "reverse " << random_json.get_number_of_mutations() << std::endl;
+        }
+        return;
     }
 
     // Compare parsings
@@ -99,7 +121,7 @@ void FuzzyJson::compare_parsing() {
             if (current_type != traversers.at(i)->get_current_type()) {
                 generate_report(traversers, value_index);
                 traversers.at(i)->next();
-                continue; // might crash if we try to read a wrong type
+                continue; // the program could crash if we try to read a wrong type
             }
             bool different = false;
             switch (current_type) {
@@ -138,7 +160,6 @@ void FuzzyJson::compare_parsing() {
             }
             if (different) {
                 generate_report(traversers, value_index);
-                //break;
             }
             traversers.at(i)->next();
         }
@@ -148,32 +169,30 @@ void FuzzyJson::compare_parsing() {
         traversers.at(0)->next();
         value_index++;
     }
-    
 }
 
 void FuzzyJson::generate_report(std::vector<std::unique_ptr<Traverser>>& traversers, int value_index)
 {
-    std::cout << "report" << std::endl;
+    if (settings.verbose) {
+        std::cout << "report" << std::endl;
+    }
     auto nanoseconds = std::chrono::system_clock::now();
-    std::time_t time = std::chrono::system_clock::to_time_t(nanoseconds);
-    std::string pretty_date(std::ctime(&time));
+    std::string time = std::to_string(std::chrono::system_clock::to_time_t(nanoseconds));
     rapidjson::StringBuffer string_buffer;
     rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(string_buffer);
     writer.StartObject();
     writer.Key("randomjson");
     writer.StartObject();
     writer.Key("provenance_type");
-    switch (random_json.get_provenance_type()) {
-        case randomjson::ProvenanceType::seed :
+    if (random_json.get_filepath() == "") {
             writer.String("seed");
             writer.Key("generation_seed");
             writer.Int(random_json.get_generation_seed());
-            break;
-        case randomjson::ProvenanceType::file :
-            writer.String("file");
-            writer.Key("filename");
-            writer.String(random_json.get_filename().c_str());
-            break;
+    }
+    else {
+        writer.String("file");
+        writer.Key("filename");
+        writer.String(random_json.get_filepath().c_str());
     }
     writer.Key("size");
     writer.Int(random_json.get_size());
@@ -222,9 +241,10 @@ void FuzzyJson::generate_report(std::vector<std::unique_ptr<Traverser>>& travers
     
     // write file
     int size = string_buffer.GetSize();
-    std::fstream file(std::string("fuzzyreport_")+pretty_date+".json", std::ios::out | std::ios::binary);
+    std::fstream file(id + std::string("_fuzzyreport_")+time+".json", std::ios::out | std::ios::binary);
     file.write(string_buffer.GetString(), sizeof(char)*size);
     file.close();
+    random_json.save(id + std::string("_reportedjson_")+time+".json");
 }
 
 }
