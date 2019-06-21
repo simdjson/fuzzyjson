@@ -279,7 +279,7 @@ class RapidjsonParser : public Parser {
     std::unique_ptr<Traverser> parse(const char* json, int size) override
     {
         rapidjson::Document document;
-        document.Parse(json, size);
+        document.Parse<rapidjson::kParseValidateEncodingFlag>(json, size);
 
         auto rapidjson_result = static_cast<rapidjson::ParseErrorCode>(document.GetParseError());
         ParsingState state = rapidjson_result == rapidjson::ParseErrorCode::kParseErrorNone ? ParsingState::ok : ParsingState::error;

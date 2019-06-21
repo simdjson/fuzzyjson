@@ -1,6 +1,7 @@
 #ifndef FUZZYJSON_H
 #define FUZZYJSON_H
 
+#include <cstdlib>
 #include <cstring>
 #include <chrono>
 #include <ctime>
@@ -48,6 +49,7 @@ class FuzzyJson
     private:
     void compare_parsing();
     void generate_report(std::vector<std::unique_ptr<Traverser>>& traversers, int value_index);
+    void reverse_mutation();
     std::string id;
     randomjson::RandomJson random_json;
     FuzzyJsonSettings settings;
@@ -55,25 +57,39 @@ class FuzzyJson
 };
 
 FuzzyJson::FuzzyJson(const randomjson::RandomJsonSettings& json_settings, FuzzyJsonSettings fuzzy_settings)
-: id(std::to_string(settings.id))
+: id(std::to_string(fuzzy_settings.id))
 , random_json(json_settings)
 , settings(fuzzy_settings)
-{}
+{
+    std::cout << id << std::endl;
+}
 
 void FuzzyJson::fuzz()
 {
     if (settings.verbose) {
         std::cout << "seed " << random_json.get_generation_seed() << std::endl;
     }
+    std::string copy_name = std::string("temp-")+id+".json";
     // mutations and comparisons
     for (int no_mutation = 0; no_mutation < settings.max_mutations; no_mutation++) {
-        random_json.save(std::string("temp-")+id+".json"); // we save a copy in case of unexpected crash
+        // we save a copy in case of unexpected crash
+        // That's not very intelligent.
+        random_json.save(copy_name);
         compare_parsing();
         if (settings.verbose) {
             std::cout << "mutation " << no_mutation << std::endl;
         }
         random_json.mutate();
     }
+
+    std::remove(copy_name.c_str());
+}
+
+void FuzzyJson::reverse_mutation() {
+    if (settings.verbose) {
+        std::cout << "reverse " << random_json.get_number_of_mutations() << std::endl;
+    }
+    random_json.reverse_mutation();
 }
 
 void FuzzyJson::compare_parsing()
@@ -89,26 +105,31 @@ void FuzzyJson::compare_parsing()
 
     // Compare the parsing states
     for (int i = 1; i < traversers.size(); i++) {
-        // If all states are not identical, we generate a report
         if (first_parsing_state != traversers.at(i)->get_parsing_state()) {
             generate_report(traversers, -1);
+            // if there was no mutation, then there is probably a problem with the json generator.
+            if (random_json.get_number_of_mutations() == 0) {
+                // anything else more intelligent to do ?
+                std::abort();
+            }
+            reverse_mutation();
             return;
         }
     }
 
-    // If all parsings failed
+    // If we arrive here and the first parsing failed, then all parsings failed
+    // We just reverse the last mutation but we're not interested by the report
     if (first_parsing_state == ParsingState::error) {
+        // constestable copypaste
+        // if there was no mutation, then there is probably a problem with the json generator.
         if (random_json.get_number_of_mutations() == 0) {
-            // There might be something we'd like to do in that case.
-            // Make a report to debug the json generator and start with a new seed, for example.
+            generate_report(traversers, -1); // the difference from the copypaste is here
+            // anything else more intelligent to do ?
+            std::abort();
         }
-
-        random_json.reverse_mutation();
-        if (settings.verbose) {
-            std::cout << "reverse " << random_json.get_number_of_mutations() << std::endl;
-        }
+        reverse_mutation();
         return;
-    }
+    }    
 
     // Compare parsings
     int value_index = 0;
@@ -241,10 +262,10 @@ void FuzzyJson::generate_report(std::vector<std::unique_ptr<Traverser>>& travers
     
     // write file
     int size = string_buffer.GetSize();
-    std::fstream file(id + std::string("_fuzzyreport_")+time+".json", std::ios::out | std::ios::binary);
+    std::fstream file(id + time + "_fuzzyreport.json", std::ios::out | std::ios::binary);
     file.write(string_buffer.GetString(), sizeof(char)*size);
     file.close();
-    random_json.save(id + std::string("_reportedjson_")+time+".json");
+    random_json.save(id + time + "_reportedjson.json");
 }
 
 }

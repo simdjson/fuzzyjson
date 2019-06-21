@@ -14,7 +14,7 @@ class Document {
     Document(std::string filepath)  {
         std::ifstream file (filepath, std::ios::in | std::ios::binary | std::ios::ate);
         size = file.tellg();
-        data = std::make_shared<char[]>(size);
+        data = std::make_unique<char[]>(size);
         file.seekg(0, std::ios::beg);
         file.read(data.get(), size);
         file.close();
@@ -102,10 +102,12 @@ void test_fuzz() {
 
     fuzzy.fuzz();
 }
+
 }
 
 int main() {
+    fuzzyjson::test_rapidjson();
+    fuzzyjson::test_simdjson();
     for (int i = 0; i < 5; i++)
         fuzzyjson::test_fuzz();
-    return 0;
 }
