@@ -202,7 +202,7 @@ class RapidjsonTraverser : public Traverser
             case rapidjson::Type::kStringType :
                 return ValueType::string;
             case rapidjson::Type::kNumberType :
-                if (value.IsInt()) {
+                if (value.IsInt64()) {
                     return ValueType::integer;
                 }
                 else { // we assume value.IsDouble() is true
