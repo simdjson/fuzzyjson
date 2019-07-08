@@ -28,6 +28,7 @@ void test_one_number_document_parsing(std::shared_ptr<Parser> parser) {
     assert(traverser->get_parsing_state() == ParsingState::ok);
     assert(traverser->get_current_type() == ValueType::integer);
     assert(traverser->get_integer() == 1);
+    assert(traverser->next() == ValueType::end_of_document);
 }
 
 void test_simple_nested_document_parsing(std::shared_ptr<Parser> parser) {
@@ -94,8 +95,8 @@ void test_simdjson() {
 }
 
 void test_fuzz() {
-    randomjson::RandomJsonSettings settings(50);
-    FuzzyJson fuzzy(settings);
+    randomjson::Settings randomjson_settings(50);
+    FuzzyJson fuzzy(randomjson_settings);
 
     fuzzy.add_parser(std::make_unique<RapidjsonParser>());
     fuzzy.add_parser(std::make_unique<SimdjsonParser>());

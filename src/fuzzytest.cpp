@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    randomjson::RandomJsonSettings json_settings;
+    randomjson::Settings json_settings;
     fuzzyjson::FuzzyJsonSettings fuzzy_settings;
 
     if (file) {
@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
         fuzzy_settings.max_mutations = max_mutations.Get();
     }
     if (precision) {
-        fuzzy_settings.comparison_precision = precision.Get();
+        fuzzy_settings.floating_precision = precision.Get();
     }
     if (verbose) {
         fuzzy_settings.verbose = verbose.Get();
