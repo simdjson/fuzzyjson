@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
     }
 
     randomjson::Settings json_settings;
-    fuzzyjson::FuzzyJsonSettings fuzzy_settings;
+    fuzzyjson::Settings fuzzy_settings;
 
     if (file) {
         json_settings.filepath = file.Get();

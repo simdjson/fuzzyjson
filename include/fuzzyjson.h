@@ -29,7 +29,7 @@ bool floatings_are_equal(double floating1, double floating2, double precision) {
     return diff <= precision*biggest;
 }
 
-struct FuzzyJsonSettings {
+struct Settings {
     int id = 0; // An identifier for the processus. Used in parallelism.
     int max_mutations = 10000;
     double floating_precision = std::numeric_limits<double>::epsilon();
@@ -39,7 +39,7 @@ struct FuzzyJsonSettings {
 class FuzzyJson
 {
     public:
-    FuzzyJson(const randomjson::Settings& json_settings, FuzzyJsonSettings fuzzy_settings = FuzzyJsonSettings{});
+    FuzzyJson(const randomjson::Settings& json_settings, Settings fuzzy_settings = Settings{});
 
     void add_parser(std::unique_ptr<Parser> parser) {
         parsers.push_back(std::move(parser));
@@ -53,11 +53,11 @@ class FuzzyJson
     void reverse_mutation();
     std::string id;
     randomjson::RandomJson random_json;
-    FuzzyJsonSettings settings;
+    Settings settings;
     std::vector<std::unique_ptr<Parser>> parsers;
 };
 
-FuzzyJson::FuzzyJson(const randomjson::Settings& json_settings, FuzzyJsonSettings fuzzy_settings)
+FuzzyJson::FuzzyJson(const randomjson::Settings& json_settings, Settings fuzzy_settings)
 : id(std::to_string(fuzzy_settings.id))
 , random_json(json_settings)
 , settings(fuzzy_settings)
