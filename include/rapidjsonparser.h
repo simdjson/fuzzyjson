@@ -235,6 +235,32 @@ class RapidjsonTraverser : public Traverser
     
     ~RapidjsonTraverser() {}
 
+    bool is_known_problem(const char* json, int size) override
+    {
+        if (get_parsing_state() == ParsingState::ok) {
+            // rapidjson does not detect any problem when one of these values is on the first byte.
+            switch (static_cast<unsigned char>(json[0])) {
+                case 0xbb:
+                case 0xbf:
+                case 0xef:
+                    return true;
+                default:
+                    break;
+            }
+
+            // rapidjson does not detect any problem when there is a null character after the json data
+            int i = size-1;
+            while (json[i] != '}' || json[i] != ']' || json[i] != '"') {
+                if (json[i] == 0) {
+                    return true;
+                }
+                i--;
+            }
+        }
+
+        return false;
+    }
+
     ValueType next() {
         if (container_stack.size() == 0) {
             current_type = ValueType::end_of_document;
@@ -282,9 +308,13 @@ class RapidjsonParser : public Parser {
         document.Parse<rapidjson::kParseValidateEncodingFlag>(json, size);
 
         auto rapidjson_result = static_cast<rapidjson::ParseErrorCode>(document.GetParseError());
-        ParsingState state = rapidjson_result == rapidjson::ParseErrorCode::kParseErrorNone ? ParsingState::ok : ParsingState::error;
 
-        return std::make_unique<RapidjsonTraverser>(get_name(), state, std::move(document));
+        if (rapidjson_result == rapidjson::ParseErrorCode::kParseErrorNone) {
+            return std::make_unique<RapidjsonTraverser>(get_name(), ParsingState::ok, std::move(document));
+        }
+        else {
+            return std::make_unique<InvalidTraverser>(get_name());
+        }
     }
 };
 }

@@ -72,6 +72,9 @@ class Traverser
     
     virtual ~Traverser() {}
 
+    // checks if the detected error is an error we already know about
+    virtual bool is_known_problem(const char* json, int size) { return false; };
+
     std::string get_parser_name() { return parser_name; }
     ParsingState get_parsing_state() { return parsing_state; }
 
@@ -113,9 +116,13 @@ class Parser
 {
     public:
     Parser(std::string name) : name(name) {}
-    virtual std::unique_ptr<Traverser> parse(const char* json, int size) = 0;
     virtual ~Parser() {}
+
+    virtual std::unique_ptr<Traverser> parse(const char* json, int size) = 0;
+
+    // Name used to identify the parser in the reports
     std::string get_name() { return name; }
+
     private:
     std::string name;
 };

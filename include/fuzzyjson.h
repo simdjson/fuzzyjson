@@ -49,6 +49,7 @@ class FuzzyJson
     private:
     void compare_parsing();
     void generate_report(std::vector<std::unique_ptr<Traverser>>& traversers, int value_index);
+    bool is_known_problem(std::vector<std::unique_ptr<Traverser>>& traversers);
     void reverse_mutation();
     std::string id;
     randomjson::RandomJson random_json;
@@ -60,9 +61,7 @@ FuzzyJson::FuzzyJson(const randomjson::Settings& json_settings, FuzzyJsonSetting
 : id(std::to_string(fuzzy_settings.id))
 , random_json(json_settings)
 , settings(fuzzy_settings)
-{
-    std::cout << id << std::endl;
-}
+{}
 
 void FuzzyJson::fuzz()
 {
@@ -71,7 +70,7 @@ void FuzzyJson::fuzz()
     }
     std::string copy_name = std::string("temp-")+id+".json";
     // mutations and comparisons
-    for (int no_mutation = 0; no_mutation < settings.max_mutations; no_mutation++) {
+    for (int no_mutation = 0; no_mutation != settings.max_mutations; no_mutation++) {
         // we save a copy in case of unexpected crash
         // That's not very intelligent.
         random_json.save(copy_name);
@@ -94,44 +93,54 @@ void FuzzyJson::reverse_mutation() {
 
 void FuzzyJson::compare_parsing()
 {
-    // getting the traversers
-    // The first traverser will be compared to all the others.
     std::vector<std::unique_ptr<Traverser>> traversers;
     for (auto& parser : parsers) {
         traversers.push_back(parser->parse(random_json.get_json(), random_json.get_size()));
     }
 
+    // The first traverser will be compared to all the others.
     ParsingState first_parsing_state = traversers.at(0)->get_parsing_state();
 
-    // Compare the parsing states
+    bool states_are_same = true;
     for (int i = 1; i < traversers.size(); i++) {
-        if (first_parsing_state != traversers.at(i)->get_parsing_state()) {
-            generate_report(traversers, -1);
-            // if there was no mutation, then there is probably a problem with the json generator.
-            if (random_json.get_number_of_mutations() == 0) {
-                // anything else more intelligent to do ?
-                std::abort();
-            }
-            reverse_mutation();
-            return;
+        if (traversers.at(0)->get_parsing_state() != traversers.at(i)->get_parsing_state()) {
+            states_are_same = false;
         }
     }
 
-    // If we arrive here and the first parsing failed, then all parsings failed
-    // We just reverse the last mutation but we're not interested by the report
-    if (first_parsing_state == ParsingState::error) {
-        // constestable copypaste
-        // if there was no mutation, then there is probably a problem with the json generator.
+    bool to_reverse = false;
+    bool report_is_generated = false;
+
+    // To have different states is a problem.
+    if (!states_are_same) {
+        generate_report(traversers, -1);
+        to_reverse = true;
+        report_is_generated = true;
+    }
+
+    // If all states are same and first parsing failed, then all parsings failed.
+    // To have parsers agreeing is not a problem.
+    if (states_are_same && first_parsing_state == ParsingState::error) {
+        to_reverse = true;
+    }
+
+    if (to_reverse) {
+        // We can't reverse if there was no mutation
+        // There is a problem somewhere. Probably with the json generator.
         if (random_json.get_number_of_mutations() == 0) {
-            generate_report(traversers, -1); // the difference from the copypaste is here
-            // anything else more intelligent to do ?
+            // We don't generate the same report twice
+            if (!report_is_generated) {
+                generate_report(traversers, -1);
+            }
+            // To continue the fuzzing could generate thousands of reports.
             std::abort();
         }
-        reverse_mutation();
-        return;
-    }    
 
-    // Compare parsings
+        reverse_mutation();
+        return; // we're not interested to compared values
+    }
+
+    // Compare values
     int value_index = 0;
     const int max_values = 1024; 
     while (value_index < max_values)
@@ -194,6 +203,11 @@ void FuzzyJson::compare_parsing()
 
 void FuzzyJson::generate_report(std::vector<std::unique_ptr<Traverser>>& traversers, int value_index)
 {
+    if (is_known_problem(traversers)) {
+        // we don't generate a report for a problem we already know about.
+        return;
+    }
+
     if (settings.verbose) {
         std::cout << "report" << std::endl;
     }
@@ -266,6 +280,15 @@ void FuzzyJson::generate_report(std::vector<std::unique_ptr<Traverser>>& travers
     file.write(string_buffer.GetString(), sizeof(char)*size);
     file.close();
     random_json.save(id + time + "_reportedjson.json");
+}
+
+bool FuzzyJson::is_known_problem(std::vector<std::unique_ptr<Traverser>>& traversers) {
+    for (auto& traverser : traversers) {
+        if (traverser->is_known_problem(random_json.get_json(), random_json.get_size())) {
+            return true;
+        }
+    }
+    return false;
 }
 
 }
