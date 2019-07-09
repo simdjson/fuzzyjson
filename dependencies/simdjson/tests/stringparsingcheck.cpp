@@ -2,11 +2,12 @@
 #include <cstring>
 #include <dirent.h>
 #include <inttypes.h>
+#include <climits>
+#include <iostream>
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <iostream>
 
 #ifndef JSON_TEST_STRINGS
 #define JSON_TEST_STRINGS
@@ -70,10 +71,17 @@ static bool parse_string(const char *p, char *output, char **end) {
   p++;
 
   for (;;) {
-
+#if (CHAR_MIN < 0) || (!defined(CHAR_MIN)) // the '!defined' is just paranoia
+    // in this path, char is *signed* 
     if ((*p >= 0 && *p < 0x20)) {
       return false; // unescaped
     }
+#else
+    // we have unsigned chars
+    if (*p < 0x20) {
+      return false; // unescaped
+    }
+#endif
 
     switch (*p) {
     case '"':
@@ -201,9 +209,9 @@ static bool parse_string(const char *p, char *output, char **end) {
   }
 }
 // end of borrowed code
-char * bigbuffer; // global variable
+char *bigbuffer; // global variable
 
-inline void foundBadString(const uint8_t *buf) {
+void foundBadString(const uint8_t *buf) {
   bad_string++;
   char *end;
   if (parse_string((const char *)buf, bigbuffer, &end)) {
@@ -226,7 +234,7 @@ void print_cmp_hex(const char *s1, const char *s2, size_t len) {
   }
 }
 
-inline void foundString(const uint8_t *buf, const uint8_t *parsed_begin,
+void foundString(const uint8_t *buf, const uint8_t *parsed_begin,
                         const uint8_t *parsed_end) {
   size_t thislen = parsed_end - parsed_begin;
   total_string_length += thislen;
@@ -325,21 +333,21 @@ bool validate(const char *dirname) {
       } else {
         strcpy(fullpath + dirlen, name);
       }
-      padded_string p;
+      simdjson::padded_string p;
       try {
-        get_corpus(fullpath).swap(p);
-      } catch (const std::exception& e) { 
+        simdjson::get_corpus(fullpath).swap(p);
+      } catch (const std::exception &e) {
         std::cout << "Could not load the file " << fullpath << std::endl;
         return EXIT_FAILURE;
-      }      
-      ParsedJson pj;
+      }
+      simdjson::ParsedJson pj;
       bool allocok = pj.allocateCapacity(p.size(), 1024);
       if (!allocok) {
         std::cerr << "can't allocate memory" << std::endl;
         return false;
       }
-      bigbuffer = (char *) malloc(p.size());
-      if(bigbuffer == NULL) {
+      bigbuffer = (char *)malloc(p.size());
+      if (bigbuffer == NULL) {
         std::cerr << "can't allocate memory" << std::endl;
         return false;
       }
@@ -380,12 +388,14 @@ int main(int argc, char *argv[]) {
   if (argc != 2) {
     std::cerr << "Usage: " << argv[0] << " <directorywithjsonfiles>"
               << std::endl;
-#if defined(SIMDJSON_TEST_DATA_DIR) &&  defined(SIMDJSON_BENCHMARK_DATA_DIR) 
-    std::cout
-        << "We are going to assume you mean to use the '"<< SIMDJSON_TEST_DATA_DIR <<"'  and  '"<< SIMDJSON_BENCHMARK_DATA_DIR <<"'directories."
-        << std::endl;
-    return validate(SIMDJSON_TEST_DATA_DIR) && validate(SIMDJSON_BENCHMARK_DATA_DIR) ? EXIT_SUCCESS
-                                                                 : EXIT_FAILURE;
+#if defined(SIMDJSON_TEST_DATA_DIR) && defined(SIMDJSON_BENCHMARK_DATA_DIR)
+    std::cout << "We are going to assume you mean to use the '"
+              << SIMDJSON_TEST_DATA_DIR << "'  and  '"
+              << SIMDJSON_BENCHMARK_DATA_DIR << "'directories." << std::endl;
+    return validate(SIMDJSON_TEST_DATA_DIR) &&
+                   validate(SIMDJSON_BENCHMARK_DATA_DIR)
+               ? EXIT_SUCCESS
+               : EXIT_FAILURE;
 #else
     std::cout << "We are going to assume you mean to use the 'jsonchecker' and "
                  "'jsonexamples' directories."
