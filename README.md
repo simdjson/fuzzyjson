@@ -3,6 +3,7 @@
 [![CircleCI](https://circleci.com/gh/lemire/simdjson.svg?style=svg)](https://circleci.com/gh/lemire/simdjson)
 [![Build Status](https://img.shields.io/appveyor/ci/lemire/simdjson.svg)](https://ci.appveyor.com/project/lemire/simdjson)
 [![][license img]][license]
+[![Code Quality: Cpp](https://img.shields.io/lgtm/grade/cpp/g/lemire/simdjson.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/lemire/simdjson/context:cpp)
 
 
 ## A C++ library to see how fast we can parse JSON with complete validation.
@@ -11,6 +12,11 @@ JSON documents are everywhere on the Internet. Servers spend a lot of time parsi
 
 <img src="images/logo.png" width="10%">
 
+
+## Real-world usage
+
+- [Microsoft FishStore](https://github.com/microsoft/FishStore)
+- [Yandex ClickHouse](https://github.com/yandex/ClickHouse)
 
 ## Paper
 
@@ -46,7 +52,7 @@ On a Skylake processor, the parsing speeds (in GB/s) of various processors on th
 ## Requirements
 
 - We support platforms like Linux or macOS, as well as Windows through Visual Studio 2017 or later.
-- A processor with AVX2 (i.e., Intel processors starting with the Haswell microarchitecture released 2013 and AMD processors starting with the Zen microarchitecture released 2017).
+- A processor with AVX2 (i.e., Intel processors starting with the Haswell microarchitecture released 2013 and AMD processors starting with the Zen microarchitecture released 2017) or at least SSE 4.2 (i.e., Intel processors going back to Nehalem released in 2008 or AMD processors starting with the Jaguar used in the PS4 and XBox One).
 - A recent C++ compiler (e.g., GNU GCC or LLVM CLANG or Visual Studio 2017), we assume C++17. GNU GCC 7 or better or LLVM's clang 6 or better.
 - Some benchmark scripts assume bash and other common utilities, but they are optional.
 
@@ -60,6 +66,7 @@ Under Windows, we build some tools using the windows/dirent_portable.h file (whi
 
 ```C
 #include "simdjson/jsonparser.h"
+using namespace simdjson;
 
 /...
 
@@ -84,6 +91,7 @@ of memory allocation with each new JSON document:
 
 ```C
 #include "simdjson/jsonparser.h"
+using namespace simdjson;
 
 /...
 
@@ -101,6 +109,7 @@ Though the `padded_string` class is recommended for best performance, you can ca
 
 ```C
 #include "simdjson/jsonparser.h"
+using namespace simdjson;
 
 /...
 std::string mystring = ... //
@@ -120,6 +129,7 @@ or
 
 ```C
 #include "simdjson/jsonparser.h"
+using namespace simdjson;
 
 /...
 
@@ -144,6 +154,7 @@ copy the files in your project in your include path. You can then include them q
 #include <iostream>
 #include "simdjson.h"
 #include "simdjson.cpp"
+using namespace simdjson;
 int main(int argc, char *argv[]) {
   const char * filename = argv[1];
   padded_string p = get_corpus(filename);
@@ -158,7 +169,7 @@ int main(int argc, char *argv[]) {
 }
 ```
 
-We require hardware support for AVX2 instructions. You have to make sure that you instruct your 
+On Intel and AMD processors, we get best performance by using the hardware support for AVX2 instructions. You have to make sure that you instruct your 
 compiler to use these instructions as needed. Under compilers such as GNU GCC or LLVM clang, the
 flag `-march=native` used on a recent Intel processor (Haswell or better) is sufficient. For portability
 of the binary files you can also specify directly the Haswell processor (`-march=haswell`). You may 
@@ -250,14 +261,15 @@ make test
 
 ## Usage (CMake on Windows using Visual Studio)
 
-We assume you have a common Windows PC with at least Visual Studio 2017 and an x64 processor with AVX2 support (2013 Intel Haswell or later).
+We assume you have a common Windows PC with at least Visual Studio 2017 and an x64 processor with AVX2 support (2013 Intel Haswell or later) or SSE 4.2 (2008 Nehalem or later). 
 
 - Grab the simdjson code from GitHub, e.g., by cloning it using [GitHub Desktop](https://desktop.github.com/).
 - Install [CMake](https://cmake.org/download/). When you install it, make sure to ask that `cmake` be made available from the command line. Please choose a recent version of cmake.
 - Create a subdirectory within simdjson, such as `VisualStudio`.
 - Using a shell, go to this newly created directory.
-- Type `cmake -DCMAKE_GENERATOR_PLATFORM=x64 ..` in the shell while in the `VisualStudio` repository. (Alternatively, if you want to build a DLL, you may use the command line `cmake -DCMAKE_GENERATOR_PLATFORM=x64 -DSIMDJSON_BUILD_STATIC=OFF ..`.)
-- This last command created a Visual Studio solution file in the newly created directory (e.g., `simdjson.sln`). Open this file in Visual Studio. You should now be able to build the project and run the tests. For example, in the `Solution Explorer` window (available from the `View` menu), right-click `ALL_BUILD` and select `Build`. To test the code, still in the `Solution Explorer` window, select `RUN_TESTS` and select `Build`.
+- Type `cmake -DCMAKE_GENERATOR_PLATFORM=x64 ..` in the shell while in the `VisualStudio` repository. (Alternatively, if you want to build a DLL, you may use the command line `cmake -DCMAKE_GENERATOR_PLATFORM=x64 -DSIMDJSON_BUILD_STATIC=OFF ..`.) This will build the code with AVX2 instructions. If your target processor does not support AVX2, you need to replace `cmake -DCMAKE_GENERATOR_PLATFORM=x64 ..` by `cmake  -DSIMDJSON_DISABLE_AVX=on -DCMAKE_GENERATOR_PLATFORM=x64 ..` . That is, you need to set the flag to forcefully disable AVX support since we compile with AVX2 instructions *by default*.
+- This last command (`cmake ...`) created a Visual Studio solution file in the newly created directory (e.g., `simdjson.sln`). Open this file in Visual Studio. You should now be able to build the project and run the tests. For example, in the `Solution Explorer` window (available from the `View` menu), right-click `ALL_BUILD` and select `Build`. To test the code, still in the `Solution Explorer` window, select `RUN_TESTS` and select `Build`.
+
 
 
 ## Usage (Using `vcpkg` on Windows, Linux and MacOS)
@@ -516,6 +528,12 @@ This helps as we redefine some new characters as pseudo-structural such as the c
 - Lin, Dan. Bits filter: a high-performance multiple string pattern matching algorithm for malware detection. Diss. School of Computing Science-Simon Fraser University, 2010.
 - Yang, Shiyang. Validation of XML Document Based on Parallel Bit Stream Technology. Diss. Applied Sciences: School of Computing Science, 2013.
 - N. Nakasato, "Implementation of a parallel tree method on a GPU", Journal of Computational Science, vol. 3, no. 3, pp. 132-141, 2012.
+
+
+## Funding
+
+The work is supported by the Natural Sciences and Engineering Research Council of Canada under grant number RGPIN-2017-03910. 
+
 
 [license]: LICENSE
 [license img]: https://img.shields.io/badge/License-Apache%202-blue.svg
