@@ -176,7 +176,7 @@ void FuzzyJson::compare_parsing()
                 case ValueType::floating : {
                     double leader = traversers.at(0)->get_floating();
                     double other = traversers.at(i)->get_floating();
-                    //different = !floatings_are_equal(leader, other);
+                    different = !floatings_are_equal(leader, other, settings.floating_precision);
                     break;
                 }
                 case ValueType::boolean : {
