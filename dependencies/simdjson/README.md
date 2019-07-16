@@ -52,7 +52,10 @@ On a Skylake processor, the parsing speeds (in GB/s) of various processors on th
 ## Requirements
 
 - We support platforms like Linux or macOS, as well as Windows through Visual Studio 2017 or later.
-- A processor with AVX2 (i.e., Intel processors starting with the Haswell microarchitecture released 2013 and AMD processors starting with the Zen microarchitecture released 2017) or at least SSE 4.2 (i.e., Intel processors going back to Nehalem released in 2008 or AMD processors starting with the Jaguar used in the PS4 and XBox One).
+- A processor with 
+  - AVX2 (i.e., Intel processors starting with the Haswell microarchitecture released 2013 and AMD processors starting with the Zen microarchitecture released 2017), 
+  - or SSE 4.2 (i.e., Intel processors going back to Nehalem released in 2008 or AMD processors starting with the Jaguar used in the PS4 and XBox One)
+  - or a 64-bit ARM processor (ARMv8-A): this covers a wide range of mobile processors, including all Apple processors currently available for sale.
 - A recent C++ compiler (e.g., GNU GCC or LLVM CLANG or Visual Studio 2017), we assume C++17. GNU GCC 7 or better or LLVM's clang 6 or better.
 - Some benchmark scripts assume bash and other common utilities, but they are optional.
 
@@ -330,6 +333,7 @@ _We do not aim to provide a general-purpose JSON library._ A library like RapidJ
 - The input string is unmodified. (Parsers like sajson and RapidJSON use the input string as a buffer.)
 - We parse integers and floating-point numbers as separate types which allows us to support large 64-bit integers in [-9223372036854775808,9223372036854775808), like a Java `long` or a C/C++ `long long`. Among the parsers that differentiate between integers and floating-point numbers, not all support 64-bit integers. (For example, sajson rejects JSON files with integers larger than or equal to 2147483648. RapidJSON will parse a file containing an overly long integer like 18446744073709551616 as a floating-point number.) When we cannot represent exactly an integer as a signed 64-bit value, we reject the JSON document.
 - We support the full range of 64-bit floating-point numbers (binary64). The values range from ` std::numeric_limits<double>::lowest()`  to `std::numeric_limits<double>::max()`, so from -1.7976e308 all the way to 1.7975e308. Extreme values (less or equal to -1e308, greater or equal to 1e308) are rejected: we refuse to parse the input document.
+- We aim for accurate float parsing with a bound on the [unit of least precision (ULP)](https://en.wikipedia.org/wiki/Unit_in_the_last_place) of one.
 - We do full UTF-8 validation as part of the parsing. (Parsers like fastjson, gason and dropbox json11 do not do UTF-8 validation.)
 - We fully validate the numbers. (Parsers like gason and ultranjson will accept `[0e+]` as valid JSON.)
 - We validate string content for unescaped characters. (Parsers like fastjson and ultrajson accept unescaped line breaks and tabs in strings.)
@@ -436,6 +440,18 @@ make allparsingcompetition
 
 Both the `parsingcompetition` and `allparsingcompetition` tools take a `-t` flag which produces
 a table-oriented output that can be conventiently parsed by other tools.
+
+
+## Docker
+
+One can run tests and benchmarks using docker. It especially makes sense under Linux. A privileged access may be needed to get performance counters.
+
+```
+git clone https://github.com/lemire/simdjson.git
+cd simdjson
+docker build -t simdjson . 
+docker run --privileged -t simdjson
+```
 
 ## Other programming languages
 
