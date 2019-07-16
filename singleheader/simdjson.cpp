@@ -1,4 +1,4 @@
-/* auto-generated on Tue  9 Jul 2019 15:20:54 EDT. Do not edit! */
+/* auto-generated on Thu Jul 11 09:40:22 EDT 2019. Do not edit! */
 #include "simdjson.h"
 
 /* used for http://dmalloc.com/ Dmalloc - Debug Malloc Library */
@@ -127,7 +127,7 @@ size_t jsonminify(const unsigned char *bytes, size_t howmany,
   }
   return pos;
 }
-}
+} // namespace simdjson
 #else
 #include <cstring>
 

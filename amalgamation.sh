@@ -35,6 +35,7 @@ $SCRIPTPATH/include/simdjson/jsonformatutils.h
 $SCRIPTPATH/include/simdjson/jsonioutil.h
 $SCRIPTPATH/include/simdjson/simdprune_tables.h
 $SCRIPTPATH/include/simdjson/simdutf8check.h
+$SCRIPTPATH/include/simdjson/simdutf8check_neon.h
 $SCRIPTPATH/include/simdjson/jsonminifier.h
 $SCRIPTPATH/include/simdjson/parsedjson.h
 $SCRIPTPATH/include/simdjson/stage1_find_marks.h
@@ -100,11 +101,10 @@ cat <<< '
 #include <iostream>
 #include "simdjson.h"
 #include "simdjson.cpp"
-using namespace simdjson;
 int main(int argc, char *argv[]) {
   const char * filename = argv[1];
-  padded_string p = get_corpus(filename);
-  ParsedJson pj = build_parsed_json(p); // do the parsing
+  simdjson::padded_string p = simdjson::get_corpus(filename);
+  simdjson::ParsedJson pj = simdjson::build_parsed_json(p); // do the parsing
   if( ! pj.isValid() ) {
     std::cout << "not valid" << std::endl;
   } else {
