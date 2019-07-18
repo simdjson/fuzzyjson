@@ -1,0 +1,4 @@
+.DS_Store
+/.sconsign.dblite
+/build/
+/.vscode/
