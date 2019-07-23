@@ -2,7 +2,7 @@
 #include "randomjson.h"
 #include "simdjsonparser.h"
 #include "rapidjsonparser.h"
-//#include "mockparser.h"
+#include "sajsonparser.h"
 
 namespace fuzzyjson {
 
@@ -94,12 +94,19 @@ void test_simdjson() {
     test_one_number_document_parsing(simdjson_parser);
 }
 
+void test_sajson() {
+    auto sajson_parser = std::make_shared<SajsonParser>();
+    test_simple_nested_document_parsing(sajson_parser);
+    //test_one_number_document_parsing(sajson_parser); // sajson does not support it
+}
+
 void test_fuzz() {
     randomjson::Settings randomjson_settings(50);
     FuzzyJson fuzzy(randomjson_settings);
 
     fuzzy.add_parser(std::make_unique<RapidjsonParser>());
     fuzzy.add_parser(std::make_unique<SimdjsonParser>());
+    fuzzy.add_parser(std::make_unique<SajsonParser>());
 
     fuzzy.fuzz();
 }
@@ -109,6 +116,7 @@ void test_fuzz() {
 int main() {
     fuzzyjson::test_rapidjson();
     fuzzyjson::test_simdjson();
+    fuzzyjson::test_sajson();
     for (int i = 0; i < 5; i++)
         fuzzyjson::test_fuzz();
 }

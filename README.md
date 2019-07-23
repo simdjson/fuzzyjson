@@ -1,7 +1,7 @@
 # FuzzyJson
 FuzzyJson compares the parsing of different json parsers. Its goal is to find bugs.
 
-It currently supports [simdjson](https://github.com/lemire/simdjson) and [rapidjson](https://github.com/Tencent/rapidjson/). Other parsers can be easily added.
+It currently supports [simdjson](https://github.com/lemire/simdjson), [rapidjson](https://github.com/Tencent/rapidjson/) and [sajson](https://github.com/chadaustin/sajson). Other parsers can be easily added.
 
 ## Simple usage
 ```
@@ -12,7 +12,7 @@ make
 ./fuzzytest --help
 ./fuzzytest --size 100 --max_mutations 1000
 ```
-The argument --help displays the help menu to show all the options. Then we generate a 100 bytes random json document and compare the parsing with simdjson and rapidjson on 1000 mutations.
+The argument --help displays the help menu to show all the options. Then we generate a 100 bytes random json document and compare the parsing with simdjson and rapidjson on 1000 mutations (sajson is deactivated since it accepts too much invalid utf-8).
 
 FuzzyJson is a lot more flexible when used as a library.
 

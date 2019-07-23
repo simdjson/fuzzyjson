@@ -163,10 +163,13 @@ class RapidjsonTraverser : public Traverser
     // To use when the document has one single value
     class SingleValueTraverser : public TraverserHelper {
         public:
-        SingleValueTraverser(rapidjson::Value* value) : value(value) {}
+        SingleValueTraverser(rapidjson::Value* value)
+        : value(value)
+        , current_type(get_value_type(*value))
+        {}
         ~SingleValueTraverser() = default;
-        ValueType next() override { return ValueType::end_of_document; }
-        ValueType get_type() override { return get_value_type(*value); }
+        ValueType next() override { current_type = ValueType::end_of_document; return current_type; }
+        ValueType get_type() override { return current_type; }
 
         std::string get_string() override { return std::string(value->GetString(), value->GetStringLength()); }
         int64_t get_integer() override { return value->GetInt64(); }
@@ -185,6 +188,7 @@ class RapidjsonTraverser : public Traverser
 
         private:
         rapidjson::Value* value;
+        ValueType current_type;
     };
 
     static ValueType get_value_type(const rapidjson::Value& value) {

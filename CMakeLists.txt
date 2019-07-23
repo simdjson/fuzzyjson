@@ -33,6 +33,7 @@ include_directories("dependencies/args")
 include_directories("dependencies/randomjson/include")
 include_directories("dependencies/simdjson/singleheader")
 include_directories("dependencies/rapidjson/include")
+include_directories("dependencies/sajson/include")
 
 
 add_subdirectory(tests)
