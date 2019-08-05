@@ -1,74 +1,91 @@
 #include "simdjson/jsonparser.h"
-#ifdef _MSC_VER
-#include <windows.h>
-#include <sysinfoapi.h>
-#else
-#include <unistd.h>
-#endif
+#include "simdjson/isadetection.h"
+#include "simdjson/portability.h"
 #include "simdjson/simdjson.h"
 
 namespace simdjson {
-// Responsible to select the best json_parse implementation
-int json_parse_dispatch(const uint8_t *buf, size_t len, ParsedJson &pj, bool reallocifneeded) {
-  // Versions for each implementation
-#ifdef __AVX2__
-  json_parse_functype* avx_implementation = &json_parse_implementation<instruction_set::avx2>;
-#endif
-#if defined(__SSE4_2__) || (defined(_MSC_VER) && defined(_M_AMD64))
-  json_parse_functype* sse4_2_implementation = &json_parse_implementation<instruction_set::sse4_2>;
-#endif
-#if  defined(__ARM_NEON) || (defined(_MSC_VER) && defined(_M_ARM64))
-  json_parse_functype* neon_implementation = &json_parse_implementation<instruction_set::neon>;
-#endif
 
-  // Determining which implementation is the more suitable
-  // Should be done at runtime. Does not make any sense on preprocessor.
-#ifdef __AVX2__
-  instruction_set best_implementation = instruction_set::avx2;
-#elif defined (__SSE4_2__) || (defined(_MSC_VER) && defined(_M_AMD64))
-  instruction_set best_implementation = instruction_set::sse4_2;
-#elif defined (__ARM_NEON) || (defined(_MSC_VER) && defined(_M_ARM64))
-  instruction_set best_implementation = instruction_set::neon;
-#else
-  instruction_set best_implementation = instruction_set::none;
-#endif
-  
+// The function that users are expected to call is json_parse.
+// We have more than one such function because we want to support several
+// instruction sets.
+
+// function pointer type for json_parse
+using json_parse_functype = int(const uint8_t *buf, size_t len, ParsedJson &pj,
+                                bool realloc_if_needed);
+
+// Pointer that holds the json_parse implementation corresponding to the
+// available SIMD instruction set
+extern json_parse_functype *json_parse_ptr;
+
+int json_parse(const uint8_t *buf, size_t len, ParsedJson &pj,
+               bool realloc_if_needed) {
+  return json_parse_ptr(buf, len, pj, realloc_if_needed);
+}
+
+int json_parse(const char *buf, size_t len, ParsedJson &pj,
+               bool realloc_if_needed) {
+  return json_parse_ptr(reinterpret_cast<const uint8_t *>(buf), len, pj,
+                        realloc_if_needed);
+}
+
+Architecture find_best_supported_implementation() {
+  constexpr uint32_t haswell_flags =
+      instruction_set::AVX2 | instruction_set::PCLMULQDQ |
+      instruction_set::BMI1 | instruction_set::BMI2;
+  constexpr uint32_t westmere_flags =
+      instruction_set::SSE42 | instruction_set::PCLMULQDQ;
+
+  uint32_t supports = detect_supported_architectures();
+  // Order from best to worst (within architecture)
+  if ((haswell_flags & supports) == haswell_flags)
+    return Architecture::HASWELL;
+  if ((westmere_flags & supports) == westmere_flags)
+    return Architecture::WESTMERE;
+  if (instruction_set::NEON)
+    return Architecture::ARM64;
+
+  return Architecture::NONE;
+}
+
+// Responsible to select the best json_parse implementation
+int json_parse_dispatch(const uint8_t *buf, size_t len, ParsedJson &pj,
+                        bool realloc_if_needed) {
+  Architecture best_implementation = find_best_supported_implementation();
   // Selecting the best implementation
   switch (best_implementation) {
-#ifdef __AVX2__
-  case instruction_set::avx2 :
-    json_parse_ptr = avx_implementation;
+#ifdef IS_X86_64
+  case Architecture::HASWELL:
+    json_parse_ptr = &json_parse_implementation<Architecture::HASWELL>;
+    break;
+  case Architecture::WESTMERE:
+    json_parse_ptr = &json_parse_implementation<Architecture::WESTMERE>;
     break;
 #endif
-#if defined(__SSE4_2__) || (defined(_MSC_VER) && defined(_M_AMD64))
-  case instruction_set::sse4_2 :
-    json_parse_ptr = sse4_2_implementation;
+#ifdef IS_ARM64
+  case Architecture::ARM64:
+    json_parse_ptr = &json_parse_implementation<Architecture::ARM64>;
     break;
 #endif
-#if defined(__ARM_NEON) || (defined(_MSC_VER) && defined(_M_ARM64))
-  case instruction_set::neon :
-    json_parse_ptr = neon_implementation;
-    break;
-#endif
-  default :
-    std::cerr << "No implemented simd instruction set supported" << std::endl;
+  default:
+    std::cerr << "The processor is not supported by simdjson." << std::endl;
     return simdjson::UNEXPECTED_ERROR;
   }
 
-  return json_parse_ptr(buf, len, pj, reallocifneeded);
+  return json_parse_ptr(buf, len, pj, realloc_if_needed);
 }
 
 json_parse_functype *json_parse_ptr = &json_parse_dispatch;
 
 WARN_UNUSED
-ParsedJson build_parsed_json(const uint8_t *buf, size_t len, bool reallocifneeded) {
+ParsedJson build_parsed_json(const uint8_t *buf, size_t len,
+                             bool realloc_if_needed) {
   ParsedJson pj;
-  bool ok = pj.allocateCapacity(len);
-  if(ok) {
-    json_parse(buf, len, pj, reallocifneeded);
+  bool ok = pj.allocate_capacity(len);
+  if (ok) {
+    json_parse(buf, len, pj, realloc_if_needed);
   } else {
     std::cerr << "failure during memory allocation " << std::endl;
   }
   return pj;
 }
-}
+} // namespace simdjson
