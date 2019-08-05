@@ -90,7 +90,7 @@ class SimdjsonTraverser : public Traverser {
     private:
     ValueType current_type;
     std::stack<ContainerInfos> container_stack;
-    simdjson::ParsedJson::iterator iterator;
+    simdjson::ParsedJson::Iterator iterator;
     simdjson::ParsedJson* parsed_json;
 
     ValueType simdjsontype_to_fuzzytype(char simdjson_type) {
@@ -128,12 +128,12 @@ class SimdjsonParser : public Parser {
     std::unique_ptr<Traverser> parse(const char* json, int size) override
     {
         simdjson::ParsedJson* parsed_json = new simdjson::ParsedJson(); // The traverser will take ownership of it
-        bool allocation_is_successful = parsed_json->allocateCapacity(size);
+        bool allocation_is_successful = parsed_json->allocate_capacity(size);
         if (!allocation_is_successful) {
             return std::make_unique<InvalidTraverser>(get_name());
         }
-        auto simdjson_result = static_cast<simdjson::errorValues>(json_parse(json, size, *parsed_json));
-        if (simdjson_result == simdjson::errorValues::SUCCESS) {
+        auto simdjson_result = static_cast<simdjson::ErrorValues>(json_parse(json, size, *parsed_json));
+        if (simdjson_result == simdjson::ErrorValues::SUCCESS) {
             return std::make_unique<SimdjsonTraverser>(get_name(), ParsingState::ok, parsed_json);
         }
         else {
