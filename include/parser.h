@@ -26,6 +26,7 @@ enum class ValueType
     string,
     key,
     integer,
+    unsigned_integer,
     floating,
     boolean,
     null, // json null value
@@ -84,9 +85,11 @@ class Traverser
 
     virtual ValueType next() = 0;
 
+    virtual bool can_handle_unsigned_integer() { return false; }
     virtual ValueType get_current_type() = 0;
     virtual std::string get_string() = 0;
     virtual int64_t get_integer() = 0;
+    virtual uint64_t get_unsigned_integer() { return 0; }
     virtual double get_floating() = 0;
     virtual bool get_boolean() = 0;
 

@@ -81,9 +81,11 @@ class SimdjsonTraverser : public Traverser {
         return current_type;
     }
 
+    bool can_handle_unsigned_integer() override { return true; }
     ValueType get_current_type() override { return current_type; }
     std::string get_string() override { return std::string(iterator.get_string(), iterator.get_string_length()); }
     int64_t get_integer() override { return iterator.get_integer(); }
+    uint64_t get_unsigned_integer() override { return iterator.get_unsigned_integer(); }
     double get_floating() override { return iterator.get_double(); }
     bool get_boolean() override { return iterator.is_true(); }
 
@@ -103,6 +105,8 @@ class SimdjsonTraverser : public Traverser {
                 return ValueType::string;
             case 'l':
                 return ValueType::integer;
+            case 'u':
+                return ValueType::unsigned_integer;
             case 'd':
                 return ValueType::floating;
             case 't':

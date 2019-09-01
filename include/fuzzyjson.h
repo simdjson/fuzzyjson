@@ -173,6 +173,14 @@ void FuzzyJson::compare_parsing()
                     different = (leader != other);
                     break;
                 }
+                case ValueType::unsigned_integer : {
+                    if (traversers.at(i)->can_handle_unsigned_integer()) {
+                        uint64_t leader = traversers.at(0)->get_unsigned_integer();
+                        uint64_t other = traversers.at(i)->get_unsigned_integer();
+                        different = (leader != other);
+                    }
+                    break;
+                }
                 case ValueType::floating : {
                     double leader = traversers.at(0)->get_floating();
                     double other = traversers.at(i)->get_floating();

@@ -1,6 +1,7 @@
 #ifndef RAPIDJSONPARSER_H
 #define RAPIDJSONPARSER_H
 
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -25,6 +26,7 @@ class RapidjsonTraverser : public Traverser
         virtual ValueType get_type() = 0;
         virtual std::string get_string() = 0;
         virtual int64_t get_integer() = 0;
+        virtual uint64_t get_unsigned_integer() = 0;
         virtual double get_floating() = 0;
         virtual bool get_boolean() = 0;
         virtual std::unique_ptr<ObjectTraverser> get_object_traverser() = 0;
@@ -89,7 +91,9 @@ class RapidjsonTraverser : public Traverser
             }
             return std::string(iterator->value.GetString(), iterator->value.GetStringLength());
         }
+
         int64_t get_integer() override { return iterator->value.GetInt64(); }
+        uint64_t get_unsigned_integer() override { return iterator->value.GetUint64(); }
         double get_floating() override { return iterator->value.GetDouble(); }
         bool get_boolean() override { return iterator->value.GetBool(); }
         std::unique_ptr<ObjectTraverser> get_object_traverser() override {
@@ -143,6 +147,7 @@ class RapidjsonTraverser : public Traverser
 
         std::string get_string() override { return std::string(iterator->GetString(), iterator->GetStringLength()); }
         int64_t get_integer() override { return iterator->GetInt64(); }
+        uint64_t get_unsigned_integer() override { return iterator->GetUint64(); }
         double get_floating() override { return iterator->GetDouble(); }
         bool get_boolean() override { return iterator->GetBool(); }
         std::unique_ptr<ObjectTraverser> get_object_traverser() override {
@@ -173,6 +178,7 @@ class RapidjsonTraverser : public Traverser
 
         std::string get_string() override { return std::string(value->GetString(), value->GetStringLength()); }
         int64_t get_integer() override { return value->GetInt64(); }
+        uint64_t get_unsigned_integer() override { return value->GetUint64(); }
         double get_floating() override { return value->GetDouble(); }
         bool get_boolean() override { return value->GetBool(); }
 
@@ -206,7 +212,15 @@ class RapidjsonTraverser : public Traverser
             case rapidjson::Type::kStringType :
                 return ValueType::string;
             case rapidjson::Type::kNumberType :
-                if (value.IsInt64()) {
+                if (value.IsUint64()) {
+                    if (value.GetUint64() > std::numeric_limits<int64_t>::max()) {
+                        return ValueType::unsigned_integer;
+                    }
+                    else {
+                        return ValueType::integer;
+                    }
+                }
+                else if (value.IsInt64()) {
                     return ValueType::integer;
                 }
                 else { // we assume value.IsDouble() is true
@@ -265,7 +279,7 @@ class RapidjsonTraverser : public Traverser
         return false;
     }
 
-    ValueType next() {
+    ValueType next() override {
         if (container_stack.size() == 0) {
             current_type = ValueType::end_of_document;
             return current_type;
@@ -286,11 +300,13 @@ class RapidjsonTraverser : public Traverser
         return current_type;
     }
 
-    ValueType get_current_type() { return current_type; }
-    std::string get_string() { return container_stack.top()->get_string(); }
-    int64_t get_integer() { return container_stack.top()->get_integer(); }
-    double get_floating() { return container_stack.top()->get_floating(); }
-    bool get_boolean() { return container_stack.top()->get_boolean(); }
+    bool can_handle_unsigned_integer() override { return true; }
+    ValueType get_current_type() override { return current_type; }
+    std::string get_string() override { return container_stack.top()->get_string(); }
+    int64_t get_integer() override { return container_stack.top()->get_integer(); }
+    virtual uint64_t get_unsigned_integer() override { return container_stack.top()->get_unsigned_integer(); }
+    double get_floating() override { return container_stack.top()->get_floating(); }
+    bool get_boolean() override { return container_stack.top()->get_boolean(); }
 
     private:
     rapidjson::Document document; // the variable itself is not used, but it owns pointers that are used everywhere
